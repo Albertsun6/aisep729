@@ -12,7 +12,9 @@
   - **S1 结论**：①质量门禁外环**实测可用**（macos-latest runner，ADR-007 护栏生效）②AI 评审技术路径定为 `claude -p --bare` headless（ADR-013：`--bare` 保 CI 可复现、`--json-schema` 使 severity 可机器判定、无第三方 action 依赖）③**认证是硬约束**——bare 模式明确跳过 OAuth/keychain，必须 API key；订阅 token 用于 CI 另有受限报告（single-source 未证实）④**触发预定降级**：外环纯质量门禁，AI 评审留内环；`ai-review.yml.template` 已写好，配 secret 改名即启用（零改造）
 - [x] T-2 建平台仓 git 与远程仓：本地 `git init` + 首次提交（47 文件）；GitHub 私有仓 `Albertsun6/aisep729` 并推送 ｜ SPEC 无关（基建，ADR-009/010 前置） ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：✅ `git log --oneline | head -1` → `50c7da5`；`gh repo view Albertsun6/aisep729 --json isPrivate` → `true`
   - 实况偏差（优于设计）：**平台仓自身即远程仓**，无需另建测试仓——S1/S6 直接在本仓拆雷，顺带真实自举（US-12）。`.gitignore` 排除 .m4a（可再生成大二进制）与 settings.local.json
-- [ ] T-3 S5 ratchet 身份指纹：对 demo 候选栈 lint 输出设计 `工具:规则:文件:指纹` 方案，构造"新增违规""替换违规（总数不变）"两负样本验证集合差 ｜ SPEC-14 ｜ 复杂度 8 ｜ 依赖 T-2 ｜ 验证：`bash tests/probe-negative/ratchet-*.sh` 两负样本均非 0 退出，结论写回 plan S5 行
+- [x] T-3 S5 ratchet 身份指纹：设计并实现 `工具:规则:文件:指纹` 方案 + 集合差判定，六用例负样本验证 ｜ SPEC-14 ｜ 复杂度 8 ｜ 依赖 T-2 ｜ 验证：✅ `bash tests/probe-negative/ratchet-negative.sh` → 全部符合预期（退出 0），两负样本均正确红
+  - **S5 结论**：①**指纹不含行号**（=违规行内容 md5 前 8 位）→ 行号漂移不误报（正样本 B 实证）②**判定用集合差 `comm -13`** 而非数量比较 → "替换违规（总数不变）"被抓（负样本 2 实证，这是数量法的致命洞）③**linter 无关**：适配器契约 `规则|文件|内容`，`RATCHET_LINTER` 可换任意 linter（环境无 shellcheck/eslint，内置 selfcheck 作验证载体，符合 ADR-010 分层前置）④基线更新须显式 `--rebaseline` 且属高风险路径（SPEC-20）
+  - **负样本框架当场抓到 2 个真缺陷**：脚本 bug（`$BASELINE——` 中文标点被并入变量名，改 `${BASELINE}`）+ 测试用例 bug（填充行含违规关键字自造违规）——宪法 C13"探针必须能证伪"的价值实证
 
 ## B 组：纵向骨架（端到端最小可用链路）
 
@@ -45,7 +47,7 @@
 | spike | 结论 | 落点（plan 行/ADR） |
 |---|---|---|
 | S1（T-1） | ✅ 质量门禁外环实测可用；AI 评审定为 headless `claude -p --bare`，认证是硬约束→按预定降级（模板待启用） | plan S1 行 · **ADR-013** |
-| S5（T-3） | 待跑 | plan 风险表 S5 行 |
+| S5（T-3） | ✅ 指纹不含行号（内容 md5）+ 集合差判定 → 行号漂移不误报、替换违规能抓；linter 无关适配器 | plan S5 行 · scripts/ratchet.sh |
 
 ## 砍线记录（超预算时填）
 
