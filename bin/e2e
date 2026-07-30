@@ -18,7 +18,9 @@ e2e ${E2E_VERSION} — 企业级端到端研发平台 CLI
 用法: e2e <子命令>
 
   doctor              检查前置工具（分层：基础/远程/目标栈）
-  init [目录]         在目标目录生成平台骨架（默认当前目录，幂等不覆盖）
+  init [目录]         在目标目录生成平台骨架（绿地，幂等不覆盖）
+  assess <仓> [-o 出]  存量项目只读体检（产物出仓外，不动目标仓一个字节）
+  adopt <仓>          存量项目非破坏接入（既有文件一律保留，冲突列清单）
   version             显示版本
 
 文档: docs/process/stages/ · 宪法: docs/constitution.md
@@ -130,6 +132,280 @@ gen_file()  {
   if [ -f "$target/$1" ]; then printf '  = %s（已存在，跳过）\n' "$1"; conflicts=$((conflicts+1)); return 0; fi
   mkdir -p "$(dirname "$target/$1")"; printf '%s\n' "$2" > "$target/$1"; created=$((created+1)); printf '  + %s\n' "$1"; }
 
+# ---------- assess（SPEC-12：只读体检，产物出仓外）----------
+# 只读证明：本命令**不写目标仓任何路径**，三产物一律落 <repo>/../e2e-assess-<name>-<ts>/
+# 探针验证方式：assess 前后 `git status --porcelain=v1 -uall` 完整快照零差异
+cmd_assess() {
+  local repo="${1:-.}" out=""
+  [ "$repo" = "-o" ] && { echo "FAIL(64): 用法 e2e assess <repo> [-o 输出目录]"; return 64; }
+  shift 2>/dev/null || true
+  [ "${1:-}" = "-o" ] && { out="${2:-}"; }
+
+  repo="$(cd "$repo" 2>/dev/null && pwd)" || { echo "FAIL(65): 目标仓不存在"; return 65; }
+  local name ts
+  name="$(basename "$repo")"; ts="$(date +%Y%m%d-%H%M%S)"
+  out="${out:-$(dirname "$repo")/e2e-assess-${name}-${ts}}"
+  case "$out" in "$repo"|"$repo"/*) echo "FAIL(64): 输出目录不得在目标仓内（只读体检，SPEC-12）"; return 64 ;; esac
+  mkdir -p "$out" || { echo "FAIL(65): 无法创建输出目录 ${out}"; return 65; }
+
+  echo "== e2e assess: ${repo} =="
+  echo "   输出 → ${out}（仓外，只读体检）"
+
+  # --- 历史深度（S4：浅历史降级）---
+  local commits shallow="" hist_ok=1
+  if git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
+    commits=$(git -C "$repo" rev-list --count HEAD 2>/dev/null || echo 0)
+    [ -f "$(git -C "$repo" rev-parse --git-dir)/shallow" ] && shallow="（shallow clone）"
+    [ "$commits" -lt 20 ] && hist_ok=0
+  else
+    commits=0; hist_ok=0
+  fi
+
+  # --- 1. 热点：churn × complexity（S4 降级：历史不足则跳过 churn 只报规模）---
+  {
+    echo "# 热点清单：${name}"
+    echo
+    echo "> 生成于 ${ts}｜历史深度：${commits} commits ${shallow}"
+    echo
+    if [ "$hist_ok" -eq 1 ]; then
+      echo "口径：churn（近一年改动次数）× complexity（非空行数），取乘积 Top 20。"
+      echo
+      printf '| 文件 | churn | 行数 | 热度 |\n|---|---|---|---|\n'
+      git -C "$repo" log --since="1 year ago" --name-only --format= 2>/dev/null \
+        | grep -v '^$' | sort | uniq -c | sort -rn | head -60 \
+        | while read -r c f; do
+            [ -f "$repo/$f" ] || continue
+            local_lines=$(grep -vc '^[[:space:]]*$' "$repo/$f" 2>/dev/null); : "${local_lines:=0}"
+            printf '| %s | %s | %s | %s |\n' "$f" "$c" "$local_lines" "$((c * local_lines))"
+          done | sort -t'|' -k5 -rn | head -20
+    else
+      echo "⚠️ **历史不足，热点分析跳过**（S4 降级）：仅 ${commits} commits${shallow}，churn 数据不可信。"
+      echo
+      echo "改用**规模清单**（非空行数 Top 20）作为替代信号——注意：大文件 ≠ 高风险，仅供人工判断起点。"
+      echo
+      printf '| 文件 | 行数 |\n|---|---|\n'
+      find "$repo" -type f \( -name '*.sh' -o -name '*.py' -o -name '*.js' -o -name '*.ts' -o -name '*.go' -o -name '*.java' -o -name '*.rb' \) \
+        -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null \
+        | while read -r f; do n=$(grep -vc '^[[:space:]]*$' "$f" 2>/dev/null); printf '%s %s\n' "${n:-0}" "${f#$repo/}"; done \
+        | sort -rn | head -20 | while read -r n f; do printf '| %s | %s |\n' "$f" "$n"; done
+    fi
+  } > "$out/hotspots.md"
+
+  # --- 2. 健康度报告 ---
+  {
+    echo "# 健康度基线：${name}"
+    echo
+    echo "> ${ts}｜**只读体检，未改动目标仓任何文件**"
+    echo
+    echo "## 概览"
+    printf '| 项 | 值 |\n|---|---|\n'
+    printf '| git 历史 | %s commits %s |\n' "$commits" "$shallow"
+    printf '| 跟踪文件数 | %s |\n' "$(git -C "$repo" ls-files 2>/dev/null | wc -l | tr -d ' ')"
+    printf '| 热点分析 | %s |\n' "$([ "$hist_ok" -eq 1 ] && echo '可用' || echo '⚠️ 降级（历史不足，见 hotspots.md）')"
+    echo
+    echo "## 文档缺口"
+    for f in README.md AGENTS.md CLAUDE.md docs/constitution.md docs/architecture/spine.md; do
+      printf '| %s | %s |\n' "$f" "$([ -e "$repo/$f" ] && echo '✅ 有' || echo '❌ 缺')"
+    done | sed '1i\
+| 文件 | 状态 |\
+|---|---|'
+    echo
+    echo "## 测试覆盖缺口（启发式）"
+    local srcn testn
+    srcn=$(find "$repo" -type f \( -name '*.sh' -o -name '*.py' -o -name '*.js' -o -name '*.ts' \) -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*test*' 2>/dev/null | wc -l | tr -d ' ')
+    testn=$(find "$repo" -type f \( -path '*test*' -o -path '*spec*' \) -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | wc -l | tr -d ' ')
+    printf -- '- 源文件（估）：%s｜测试相关文件：%s\n' "$srcn" "$testn"
+    [ "$testn" -eq 0 ] && echo "- ⚠️ **未发现任何测试文件**——这是接入平台后的首要补齐项（宪法 C2）"
+    echo
+    echo "## 死代码线索（启发式，需人工确认）"
+    echo "> 方法：文件名在仓内其余文件中零引用。**误报率高**（动态加载/入口文件/配置驱动都会误报），仅作排查起点。"
+    echo
+    git -C "$repo" ls-files 2>/dev/null | grep -E '\.(sh|py|js|ts)$' | head -100 | while read -r f; do
+      b=$(basename "$f"); b_noext="${b%.*}"
+      cnt=$(git -C "$repo" grep -l -- "$b_noext" 2>/dev/null | grep -vc "^${f}$"); : "${cnt:=0}"
+      [ "$cnt" -eq 0 ] 2>/dev/null && printf -- '- %s\n' "$f"
+    done | head -15
+    echo
+    echo "## 下一步"
+    echo "1. 人工核对 risk-tiers 初稿（本次生成于同目录），按业务实际调整高风险路径"
+    echo "2. \`e2e adopt <repo>\` 非破坏接入（不覆盖任何既有文件）"
+    echo "3. 先只挂门禁③（PR 评审+CI ratchet），跑顺一个月再向两端扩"
+  } > "$out/health-baseline.md"
+
+  # --- 3. risk-tiers 初稿 ---
+  {
+    echo "# 风险分级路由表（初稿，由 e2e assess 生成于 ${ts}）"
+    echo
+    echo "> ⚠️ **这是机器生成的起点，不是结论**。必须人工核对后才可作为门禁依据。"
+    echo "> 本文件自身应列为高风险路径（改门禁规则须人审）。"
+    echo
+    printf '| 档 | 匹配路径（glob） | 依据 | 人审 |\n|---|---|---|---|\n'
+    printf '| **高** | `docs/constitution.md` `docs/process/risk-tiers.md` `.github/workflows/**` `**/*secret*` `**/*credential*` `**/auth/**` `**/*migration*` | 规则本身/CI/凭据/认证/数据迁移 | 强制 |\n'
+    if [ "$hist_ok" -eq 1 ]; then
+      echo "$(head -8 "$out/hotspots.md" | tail -3 | awk -F'|' 'NF>2{gsub(/ /,"",$2); if($2!="文件") printf "%s ", $2}')" | \
+        sed 's/^/| **高（热点）** | /; s/$/ | churn×complexity Top（assess 实测） | 强制 |/'
+    fi
+    printf '| **中** | `src/**` `lib/**` `app/**` `scripts/**` `bin/**` | 可执行代码 | 建议 |\n'
+    printf '| **低** | `docs/**` `*.md` `.gitignore` | 文字与配置 | 否 |\n'
+    echo
+    echo "## 升档触发（默认启发值，非实证安全线）"
+    echo "- 净改动 >400 行 或 文件数 >15 → 升档；>1000 行 → 默认要求拆分"
+    echo "- 删除测试 / 新增外部依赖 / 门禁打回 ≥2 次"
+  } > "$out/risk-tiers-draft.md"
+
+  echo "  + hotspots.md         （热点清单$([ "$hist_ok" -eq 1 ] || echo '，⚠️ 已降级')）"
+  echo "  + health-baseline.md  （健康度基线）"
+  echo "  + risk-tiers-draft.md （风险分级初稿，需人工核对）"
+  echo
+  echo "PASS: 体检完成，目标仓未被改动（SPEC-12 只读契约）"
+  echo "下一步: e2e adopt ${repo}"
+  return 0
+}
+
+# ---------- adopt（SPEC-13：非破坏叠加）----------
+cmd_adopt() {
+  local target="${1:-.}"
+  target="$(cd "$target" 2>/dev/null && pwd)" || { echo "FAIL(65): 目标仓不存在"; return 65; }
+  [ "$target" = "$E2E_HOME" ] && { echo "FAIL(64): 不能在平台仓自身跑 adopt"; return 64; }
+  git -C "$target" rev-parse --git-dir >/dev/null 2>&1 || { echo "FAIL(64): 目标不是 git 仓库（adopt 需要历史来做基线与追认 ADR）"; return 64; }
+
+  echo "== e2e adopt: ${target}（非破坏叠加，既有文件一律不覆盖）=="
+  local conflicts=0 created=0 conflict_list=""
+
+  for d in .claude/skills .claude/agents .claude/hooks .claude/rules \
+           docs/architecture/adr docs/process/stages docs/runbooks \
+           specs scripts/lib tests/probe-negative .github/workflows; do
+    mkdir -p "$target/$d"
+  done
+
+  # 能力层：**逐文件**判断（目录级判断会因前面 mkdir -p 建的空目录而整体跳过——实测踩过）
+  _adopt_file() {  # _adopt_file <相对文件路径>
+    local rel="$1"
+    [ -f "$E2E_HOME/$rel" ] || return 0
+    if [ -e "$target/$rel" ]; then
+      conflicts=$((conflicts+1))
+      conflict_list="${conflict_list}\n- \`${rel}\`（平台版未覆盖，如需采用请手工比对）"
+      return 0
+    fi
+    mkdir -p "$(dirname "$target/$rel")"
+    cp "$E2E_HOME/$rel" "$target/$rel"; created=$((created+1))
+  }
+  _adopt_copy() {  # _adopt_copy <相对路径>：目录则递归逐文件，文件则单个处理
+    local rel="$1" before_c=$conflicts before_n=$created
+    if [ -d "$E2E_HOME/$rel" ]; then
+      while IFS= read -r f; do _adopt_file "${f#$E2E_HOME/}"; done \
+        < <(find "$E2E_HOME/$rel" -type f -not -name '.DS_Store' 2>/dev/null)
+      printf '  %s %s/（新增 %s 文件，跳过 %s 已存在）\n' \
+        "$([ $((created-before_n)) -gt 0 ] && echo '+' || echo '=')" \
+        "$rel" "$((created-before_n))" "$((conflicts-before_c))"
+    else
+      _adopt_file "$rel"
+      [ $created -gt $before_n ] && printf '  + %s\n' "$rel" || printf '  = %s（已存在，保留原文件）\n' "$rel"
+    fi
+  }
+
+  for rel in .claude/skills .claude/agents scripts/lib \
+             scripts/check-shell-traps.sh scripts/check-structure.sh scripts/ratchet.sh \
+             docs/process/skills-manifest.md docs/process/stages; do
+    _adopt_copy "$rel"
+  done
+
+  # 架构基线（as-is，不写理想架构）
+  if [ ! -f "$target/docs/architecture/spine.md" ]; then
+    {
+      echo "# Architecture Spine（as-is 基线，由 e2e adopt 扫描生成 $(date +%Y-%m-%d)）"
+      echo
+      echo "> ⚠️ 机器扫描的**现状**快照，不是理想架构。理想态写进 ADR 的 proposed 决策。"
+      echo "> ≤300 行纪律：随架构变更 PR 同步更新。"
+      echo
+      echo "## 顶层结构"
+      echo '```text'
+      (cd "$target" && git ls-files 2>/dev/null | awk -F/ 'NF>1{print $1"/"}NF==1{print $1}' | sort -u | head -25)
+      echo '```'
+      echo
+      echo "## 规模"
+      printf -- '- 跟踪文件：%s\n' "$(git -C "$target" ls-files 2>/dev/null | wc -l | tr -d ' ')"
+      printf -- '- 历史：%s commits\n' "$(git -C "$target" rev-list --count HEAD 2>/dev/null || echo 0)"
+      echo
+      echo "## 已知债务（如实记录，不粉饰）"
+      echo "- <接入时人工补充：已知的技术债、绕不开的历史包袱>"
+    } > "$target/docs/architecture/spine.md"
+    created=$((created+1)); printf '  + docs/architecture/spine.md（as-is 扫描基线）\n'
+  else
+    printf '  = docs/architecture/spine.md（已存在，保留）\n'; conflicts=$((conflicts+1))
+  fi
+
+  # 追认 ADR 框架（git 考古起点）
+  if [ ! -e "$target/docs/architecture/adr/ADR-001-retroactive-baseline.md" ]; then
+    {
+      echo "# ADR-001：接入 E2E 平台时的现状基线（retroactive）"
+      echo
+      echo "- 状态：accepted（**retroactive-baseline**：追认既有事实，非新决策）"
+      echo "- 日期：$(date +%Y-%m-%d)"
+      echo
+      echo "## 背景与驱动力"
+      echo "本仓库在接入 E2E 平台前已有 $(git -C "$target" rev-list --count HEAD 2>/dev/null || echo 0) 次提交的历史。"
+      echo "既有技术选型未经 ADR 记录，本文追认现状以建立可追溯起点。"
+      echo
+      echo "## 备选方案"
+      echo
+      echo "### 选项 A：补写全部历史 ADR"
+      echo "- 优点：历史完整"
+      echo "- 代价：考古成本极高，且多数决策的当事人与语境已不可考——大概率写成事后合理化"
+      echo
+      echo "### 选项 B：只追认基线，从今天起新决策才写 ADR"
+      echo "- 优点：成本可控；ADR 从此有真实决策语境"
+      echo "- 代价：历史决策仍无据可查（接受）"
+      echo
+      echo "## 决定"
+      echo "选 B。**不补写历史，只锁定基线**：本 ADR 之后的架构决策一律走 ADR。"
+      echo
+      echo "## 后果"
+      echo "- ✅ 追溯起点明确，成本可控"
+      echo "- ⚠️ 历史决策仍是黑盒——遇到时按需补 retroactive ADR（标注 retroactive）"
+      echo
+      echo "## 待人工补充"
+      echo "<接入者：请在此列出 3-5 条最值得追认的既有决策，如技术栈选型/分层约定/部署形态>"
+    } > "$target/docs/architecture/adr/ADR-001-retroactive-baseline.md"
+    created=$((created+1)); printf '  + docs/architecture/adr/ADR-001-retroactive-baseline.md（追认基线）\n'
+  fi
+
+  # AGENTS.md / CLAUDE.md：走 init 的模板但不覆盖（**已存在也要计入冲突**，否则报告失真）
+  _adopt_gen() {  # _adopt_gen <文件名> <内容>
+    if [ -f "$target/$1" ]; then
+      printf '  = %s（已存在，保留原文件）\n' "$1"; conflicts=$((conflicts+1))
+      conflict_list="${conflict_list}\n- \`${1}\`（平台版未覆盖；建议把平台约定手工并入你的版本）"
+      return 0
+    fi
+    printf '%s\n' "$2" > "$target/$1"; created=$((created+1)); printf '  + %s\n' "$1"
+  }
+  _adopt_gen "AGENTS.md" "$(tpl_agents)"
+  _adopt_gen "CLAUDE.md" "$(tpl_claude_md)"
+
+  # 冲突清单（SPEC-13：该文件已存在时写仓外时间戳文件并退出 2）
+  if [ "$conflicts" -gt 0 ]; then
+    local cfile="$target/docs/adopt-conflicts.md"
+    if [ -e "$cfile" ]; then
+      cfile="$(dirname "$target")/e2e-adopt-conflicts-$(basename "$target")-$(date +%Y%m%d-%H%M%S).md"
+      printf '  ! docs/adopt-conflicts.md 已存在 → 冲突清单改写到仓外：%s\n' "$cfile"
+    fi
+    {
+      echo "# adopt 冲突清单（$(date +%Y-%m-%d)）"
+      echo
+      echo "以下路径**已存在于本仓**，adopt 未覆盖（非破坏原则，SPEC-13）："
+      printf '%b\n' "$conflict_list"
+      echo
+      echo "处理建议：逐项比对平台版与现有版，需要采用平台版时手工合入。"
+    } > "$cfile"
+  fi
+
+  echo
+  echo "完成：${created} 个新建，${conflicts} 个已存在未覆盖"
+  echo "下一步: cd ${target} && e2e doctor；然后用 e2e-discovery 立项第一个 delta 变更（specs/<change>/）"
+  [ "$conflicts" -gt 0 ] && return 2
+  return 0
+}
+
 # ---------- 模板 ----------
 tpl_claude_md() { cat <<'EOF'
 # 项目上下文（Claude Code 常驻规则）
@@ -229,6 +505,8 @@ EOF
 case "${1:-}" in
   doctor)  shift; cmd_doctor "$@" ;;
   init)    shift; cmd_init "$@" ;;
+  assess)  shift; cmd_assess "$@" ;;
+  adopt)   shift; cmd_adopt "$@" ;;
   version) echo "e2e ${E2E_VERSION}" ;;
   ""|-h|--help|help) usage ;;
   *) echo "未知子命令: $1"; echo; usage; exit 64 ;;

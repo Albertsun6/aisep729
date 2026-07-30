@@ -190,6 +190,36 @@ else
   echo "  ❌ 反向 模板骨架原样被判合格（finding #3 未修好）"; fails=$((fails+1))
 fi
 
+# ---------- assess/adopt 契约（SPEC-12/13，M2-C）----------
+echo "-- e2e assess/adopt --"
+E2E_BIN="$ROOT/bin/e2e"
+LEG="$WORK/legacy"; mkdir -p "$LEG/src"
+( cd "$LEG" && git init -q && git config user.email t@t && git config user.name t \
+  && printf 'x=1\n' > src/a.py && printf '# 我的\n' > CLAUDE.md && git add -A && git commit -qm init ) >/dev/null 2>&1
+
+# SPEC-12：输出目录不得在目标仓内
+expect "assess/64 输出目录在仓内 → 拒绝" 64 bash "$E2E_BIN" assess "$LEG" -o "$LEG/out"
+
+# SPEC-12 只读契约：完整快照（含文件内容 md5）零差异
+snap() { ( cd "$LEG" && git status --porcelain=v1 -uall; git rev-parse HEAD; \
+           find . -type f -not -path './.git/*' | sort | xargs md5 -q 2>/dev/null ) | md5 -q; }
+before=$(snap); bash "$E2E_BIN" assess "$LEG" >/dev/null 2>&1; after=$(snap)
+total=$((total+1))
+if [ "$before" = "$after" ]; then echo "  ✅ assess 只读契约（目标仓完整快照零差异）"
+else echo "  ❌ assess 改动了目标仓（违反 SPEC-12）"; fails=$((fails+1)); fi
+
+# SPEC-13：非破坏 + 冲突计数 + exit 2 + 能力层真的复制进去
+md5_before=$(md5 -q "$LEG/CLAUDE.md")
+bash "$E2E_BIN" adopt "$LEG" >/dev/null 2>&1; arc=$?
+total=$((total+1))
+if [ "$arc" = "2" ] && [ "$(md5 -q "$LEG/CLAUDE.md")" = "$md5_before" ] \
+   && [ -f "$LEG/.claude/skills/e2e-discovery/SKILL.md" ] && [ -f "$LEG/scripts/lib/gate.sh" ] \
+   && grep -q 'CLAUDE.md' "$LEG/docs/adopt-conflicts.md" 2>/dev/null; then
+  echo "  ✅ adopt 非破坏（既有未覆盖 + 冲突入清单 + exit 2 + 能力层已复制）"
+else
+  echo "  ❌ adopt 契约不符（exit=${arc}｜CLAUDE.md 变动或能力层未复制或冲突未记录）"; fails=$((fails+1))
+fi
+
 # ---------- ratchet 负样本（S5，独立脚本）----------
 echo "-- ratchet.sh --"
 expect "ratchet 六用例（含替换违规总数不变）" 0 bash "$ROOT/tests/probe-negative/ratchet-negative.sh"
