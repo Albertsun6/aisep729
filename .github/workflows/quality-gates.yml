@@ -1,0 +1,31 @@
+name: quality-gates
+
+# 外环质量门禁（SPEC-19）：平台仓自审探针跑在 CI 上
+# runner 钉 macos-latest（ADR-007 选项 B 护栏：与本地 BSD 工具行为一致）
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  probes:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 阶段0 探针（prfaq 结构 + 门禁⓪状态）
+        run: bash .claude/skills/e2e-discovery/scripts/check-prfaq.sh specs/platform-pilot/prfaq.md
+
+      - name: 阶段1 探针（PRD 结构 + 门禁⓪串锁）
+        run: bash .claude/skills/e2e-requirements/scripts/check-prd.sh specs/platform-pilot/
+
+      - name: 阶段2 探针（设计制品 + 宪法/ADR 规则，终检模式）
+        run: bash .claude/skills/e2e-design/scripts/check-design.sh specs/platform-pilot/ --final
+
+      - name: 阶段3 探针（tasks 逐条验证行/复杂度点）
+        run: bash .claude/skills/e2e-implement/scripts/check-tasks.sh specs/platform-pilot/
+
+      - name: 汇总
+        run: echo "✅ 全部阶段探针通过（quality-gates）"
