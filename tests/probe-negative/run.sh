@@ -133,6 +133,63 @@ sed -i '' 's/| open | -/| 差不多了 | -/' "$WORK/f4/review.md"
 sed -i '' 's/llm-advisory/deterministic/' "$WORK/f4/review.md"
 expect "P4/66 finding 状态非法" 66 bash "$P4" "$WORK/f4"
 
+# ---------- 阶段5 探针（门禁③服务端双路径 fail-closed）----------
+echo "-- check-release.sh --"
+P5="$ROOT/.claude/skills/e2e-release/scripts/check-release.sh"
+mkdir -p "$WORK/f5"
+# 非 git 目录 + 无 gh 上下文 → 两条路径都证不出 → fail-closed 拒绝（不是放行）
+expect "P5/64 门禁③无从验证 → fail-closed" 64 env -u E2E_PR -u E2E_TEST_CMD GH_TOKEN= PATH=/usr/bin:/bin bash "$P5" "$WORK/f5" --gate-only
+# 降级路径：不再隐式回落跑 run.sh（finding #5：会造成无界再入且证据与变更无关）
+expect "P5/64 降级路径未设 E2E_TEST_CMD → 拒绝" 64 env -u E2E_TEST_CMD PATH=/usr/bin:/bin bash "$P5" "$WORK/f5" --gate-only
+
+# ---------- 阶段6 探针（门禁④串锁）----------
+echo "-- check-retire.sh --"
+P6="$ROOT/.claude/skills/e2e-retire/scripts/check-retire.sh"
+mkdir -p "$WORK/f6"
+expect "P6/64 无上游 release.md" 64 bash "$P6" "$WORK/f6" --gate-only
+{ printf '# RELEASE\n'; gate_block "打回"; } > "$WORK/f6/release.md"
+expect "P6/64 门禁④=打回 拒绝放行" 64 bash "$P6" "$WORK/f6" --gate-only
+{ printf '# RELEASE\n'; gate_block "批准"; } > "$WORK/f6/release.md"
+expect "P6/65 门禁④过但缺 deprecation" 65 bash "$P6" "$WORK/f6"
+
+# ---------- 好样本 PASS 用例（reviewer finding #4：结构性缺口）----------
+# 此前套件只验"坏的会红"，不验"好的会绿"——这正是"探针按自家模板永远红"能溜过去的原因
+echo "-- 好样本（正向回归）--"
+# artifact.sh 的判定函数：好内容必须判为实质非空、无占位符
+cat > "$WORK/good.md" <<'EOF'
+## 启动
+- 命令：`make serve`
+- 健康检查：curl localhost:8080/healthz 返回 200
+## 回滚
+- **回滚演练证据**：2026-07-30 staging 演练，RTO 4 分钟，记录见 CI run 123
+- 命令：`git revert abc123 && make deploy`
+## 故障
+- 症状 A → 处置：重启 worker（`make restart`）
+EOF
+. "$ROOT/scripts/lib/artifact.sh"
+total=$((total+1))
+if [ "$(art_sec_lines "$WORK/good.md" "## 启动")" -ge 2 ] \
+   && [ "$(art_sec_lines "$WORK/good.md" "## 回滚")" -ge 2 ] \
+   && ! art_has_placeholder "$WORK/good.md" \
+   && grep -qE "回滚演练证据[*_[:space:]]*：[[:space:]]*[^<[:space:]]" "$WORK/good.md"; then
+  echo "  ✅ 好样本 填实制品判为合格（含加粗写法的演练证据）"
+else
+  echo "  ❌ 好样本 填实制品被误判为不合格（模板/探针漂移复发）"; fails=$((fails+1))
+fi
+# 反向：模板骨架原样（全占位符）必须判为未决
+cat > "$WORK/skeleton.md" <<'EOF'
+## 启动
+- 命令：`<启动命令>`
+## 回滚
+- **回滚演练证据**：<日期与记录>
+EOF
+total=$((total+1))
+if art_has_placeholder "$WORK/skeleton.md" && [ "$(art_sec_lines "$WORK/skeleton.md" "## 启动")" -lt 2 ]; then
+  echo "  ✅ 反向 模板骨架原样被判未决（不许直抄过关）"
+else
+  echo "  ❌ 反向 模板骨架原样被判合格（finding #3 未修好）"; fails=$((fails+1))
+fi
+
 # ---------- ratchet 负样本（S5，独立脚本）----------
 echo "-- ratchet.sh --"
 expect "ratchet 六用例（含替换违规总数不变）" 0 bash "$ROOT/tests/probe-negative/ratchet-negative.sh"

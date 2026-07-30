@@ -51,13 +51,13 @@ nstage=$(ls docs/process/stages/stage-*.md 2>/dev/null | wc -l | tr -d ' ')
 echo "   ✅ 阶段定义文档 ${nstage} 份"
 
 # glossary 阶段词条节
-for s in 0 1 2 3 4; do
+for s in 0 1 2 3 4 5 6; do
   grep -qE "^## 阶段 ${s}" "$GLOSSARY" || { echo "   ❌ glossary 缺阶段 ${s} 词条节"; miss=$((miss+1)); }
 done
 
 # ---- 4：宪法 C4——.claude/ 下不得有业务真相 ----
 stray=$(find .claude -maxdepth 1 -mindepth 1 -not -name skills -not -name agents \
-        -not -name hooks -not -name rules -not -name 'settings*.json' 2>/dev/null || true)
+        -not -name hooks -not -name rules -not -name "settings*.json" -not -name ".DS_Store" 2>/dev/null || true)
 if [ -n "$stray" ]; then
   echo "   ❌ .claude/ 下有非适配层内容（宪法 C4）："; printf '%s\n' "$stray" | sed 's/^/      /'
   miss=$((miss+1))
