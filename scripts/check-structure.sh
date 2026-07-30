@@ -35,11 +35,12 @@ while IFS='|' read -r _ name stage gate product probe _; do
   [ -d "$d/templates" ]     || { echo "   ❌ ${name}：缺 templates/"; miss=$((miss+1)); }
   ls "$d"/scripts/check-*.sh >/dev/null 2>&1 || { echo "   ❌ ${name}：缺 scripts/check-*.sh"; miss=$((miss+1)); }
   # 探针必须接公共库（SPEC-5）
+  local_ok=1
   for p in "$d"/scripts/check-*.sh; do
     [ -e "$p" ] || continue
-    grep -q "lib/gate.sh" "$p" || { echo "   ❌ ${name}：$(basename "$p") 未接 gate.sh 公共库（SPEC-5）"; miss=$((miss+1)); }
+    grep -q "lib/gate.sh" "$p" || { echo "   ❌ ${name}：$(basename "$p") 未接 gate.sh 公共库（SPEC-5）"; miss=$((miss+1)); local_ok=0; }
   done
-  echo "   ✅ ${name}：三件齐 + 接公共库"
+  [ "$local_ok" = 1 ] && echo "   ✅ ${name}：三件齐 + 接公共库"
 done < "$MANIFEST"
 
 # 阶段定义文档（已实现的阶段各一份）

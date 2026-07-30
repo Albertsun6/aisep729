@@ -6,9 +6,12 @@ set -u
 dir="${1:-}"; mode="${2:-full}"
 spec="$dir/spec.md"; tasks="$dir/tasks.md"
 
+# ---- 门禁解析公共库(SPEC-5：单一实现) ----
+_root=$(cd "$(dirname "$0")/../../../.." && pwd)
+. "$_root/scripts/lib/gate.sh" || { echo "FAIL(65): 无法加载 scripts/lib/gate.sh"; exit 65; }
+
 # ---- 门禁② 前置 ----
-[ -f "$spec" ] || { echo "FAIL(64): 无 spec.md——先走 e2e-design(阶段2)"; exit 64; }
-grep -qE "决定：\s*批准" "$spec" || { echo "FAIL(64): 门禁② 非批准——拒绝进入阶段3"; exit 64; }
+gate_require "$spec" 批准 || exit 64
 echo "GATE2: 批准 ✓"
 [ "$mode" = "--gate-only" ] && exit 0
 

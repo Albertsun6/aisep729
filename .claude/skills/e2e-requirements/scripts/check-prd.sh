@@ -6,12 +6,12 @@ set -u
 dir="${1:-}"; mode="${2:-full}"
 prfaq="$dir/prfaq.md"; prd="$dir/prd.md"
 
+# ---- 门禁解析公共库(SPEC-5：单一实现) ----
+_root=$(cd "$(dirname "$0")/../../../.." && pwd)
+. "$_root/scripts/lib/gate.sh" || { echo "FAIL(65): 无法加载 scripts/lib/gate.sh"; exit 65; }
+
 # ---- 门禁⓪ 前置(阶段1 的启动钥匙) ----
-[ -f "$prfaq" ] || { echo "FAIL(64): 无 prfaq.md——先走 e2e-discovery(阶段0)"; exit 64; }
-if ! grep -qE "决定：\s*go" "$prfaq"; then
-  echo "FAIL(64): 门禁⓪ 非 go(当前: $(grep -oE '决定：.*' "$prfaq" | head -1))——拒绝进入阶段1"
-  exit 64
-fi
+gate_require "$prfaq" go || exit 64
 echo "GATE0: go ✓"
 [ "$mode" = "--gate-only" ] && exit 0
 
@@ -53,10 +53,8 @@ fi
 pending=$(grep -cE "^- \[ \] " "$prd")
 [ "$pending" -gt 0 ] && echo "WARN: ${pending} 项待澄清未闭环(澄清或显式移交后再过门禁①)"
 
-# 门禁①状态
-if grep -qE "决定：<待填>" "$prd"; then gate1="PENDING(待人批)"
-elif grep -qE "决定：\s*(批准|打回)" "$prd"; then gate1="$(grep -oE '决定：\s*(批准|打回)' "$prd" | head -1)"
-else gate1="UNKNOWN(门禁块格式异常)"; fi
+# 门禁①状态(公共库)
+gate1=$(gate_status "$prd")
 
 [ "$missing" -gt 0 ] && { echo "FAIL(66): 缺 $missing 项"; exit 66; }
 echo "PASS: 结构完整 | 需求条目=$stories(Must=$must) | 门禁①=$gate1"

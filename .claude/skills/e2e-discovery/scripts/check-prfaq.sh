@@ -6,6 +6,10 @@ set -u
 f="${1:-}"
 [ -f "$f" ] || { echo "FAIL(65): 文件不存在: $f"; exit 65; }
 
+# ---- 门禁解析公共库(SPEC-5：单一实现) ----
+_root=$(cd "$(dirname "$0")/../../../.." && pwd)
+. "$_root/scripts/lib/gate.sh" || { echo "FAIL(65): 无法加载 scripts/lib/gate.sh"; exit 65; }
+
 required=(
   "## 假设陈述"
   "## 最险假设"
@@ -32,14 +36,8 @@ lines=$(grep -vc '^[[:space:]]*$' "$f")
 # 分层判据检查(熔断线/信号至少各一条 checkbox)
 grep -qF "熔断线" "$f" || { echo "MISSING: go/kill 判据须含「熔断线」分层"; missing=$((missing+1)); }
 
-# 门禁状态
-if grep -qE "决定：<待填>|决定：\s*$" "$f"; then
-  gate="PENDING(待人批)"
-elif grep -qE "决定：\s*(go|modify|kill)" "$f"; then
-  gate="$(grep -oE '决定：\s*(go|modify|kill)' "$f" | head -1)"
-else
-  gate="UNKNOWN(门禁块格式异常)"
-fi
+# 门禁状态(公共库)
+gate=$(gate_status "$f")
 
 if [ "$missing" -gt 0 ]; then
   echo "FAIL(66): 缺 $missing 段，结构不完整"

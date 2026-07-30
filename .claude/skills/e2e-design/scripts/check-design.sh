@@ -8,9 +8,12 @@ prd="$dir/prd.md"; spec="$dir/spec.md"; plan="$dir/plan.md"
 root="$(cd "$dir/../.." 2>/dev/null && pwd)"   # specs/<f>/ -> 仓库根
 const="$root/docs/constitution.md"; spine="$root/docs/architecture/spine.md"; adrdir="$root/docs/architecture/adr"
 
+# ---- 门禁解析公共库(SPEC-5：单一实现) ----
+_root=$(cd "$(dirname "$0")/../../../.." && pwd)
+. "$_root/scripts/lib/gate.sh" || { echo "FAIL(65): 无法加载 scripts/lib/gate.sh"; exit 65; }
+
 # ---- 门禁① 前置 ----
-[ -f "$prd" ] || { echo "FAIL(64): 无 prd.md——先走 e2e-requirements(阶段1)"; exit 64; }
-grep -qE "决定：\s*批准" "$prd" || { echo "FAIL(64): 门禁① 非批准——拒绝进入阶段2"; exit 64; }
+gate_require "$prd" 批准 || exit 64
 echo "GATE1: 批准 ✓"
 [ "$mode" = "--gate-only" ] && exit 0
 
@@ -90,10 +93,8 @@ fi
 grep -qF "architect 预审" "$spec" 2>/dev/null && grep -qF "异构评审" "$spec" 2>/dev/null || \
   echo "WARN: spec 评审记录未见 architect 预审/异构评审留痕(门禁②前须补)"
 
-# ---- 门禁②状态 ----
-if grep -qE "决定：<待填>" "$spec" 2>/dev/null; then gate2="PENDING(待人批)"
-elif grep -qE "决定：\s*(批准|打回)" "$spec" 2>/dev/null; then gate2="$(grep -oE '决定：\s*(批准|打回)' "$spec" | head -1)"
-else gate2="UNKNOWN"; fi
+# ---- 门禁②状态(公共库) ----
+gate2=$(gate_status "$spec")
 
 [ "$missing" -gt 0 ] && { echo "FAIL(66): 缺 $missing 项"; exit 66; }
 echo "PASS: 设计制品结构完整 | 门禁②=$gate2"
