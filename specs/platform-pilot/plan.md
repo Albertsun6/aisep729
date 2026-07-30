@@ -66,7 +66,7 @@ flowchart TB
 
 | 风险/未知 | spike 任务（进 tasks） | 时间盒 | 排期 | 失败即触发 |
 |---|---|---|---|---|
-| claude-code-action 在私有仓的配置/计费/权限未实测 | **S1：建最小测试私有仓跑 @claude workflow**（提前至首日——prfaq 深坑原判；仅作 CI 冒烟，主开发仍本地，需用户确认见门禁②） | 半天 | **M1 首日** | 外环降级为纯质量门禁（lint/test），AI 评审留内环——记 ADR |
+| ~~claude-code-action 在私有仓的配置/计费/权限未实测~~ **已拆（T-1）** | S1 ✅ **结论**：质量门禁 workflow 实测通过（macos-latest/13s/四阶段探针全绿，run 30583711579）；AI 评审改用 `claude -p --bare` headless（ADR-013：可复现+结构化判定+无第三方依赖），但认证绕不开（bare 跳过 OAuth，须 API key）→ **按预定降级**：外环纯质量门禁，AI 评审留内环；headless workflow 已写成模板待凭据启用 | 半天 | ✅ M1 首日已完成 | 已触发降级并记 ADR-013 |
 | ratchet violation identity 稳定性（行号漂移/工具版本差异） | **S5：demo 栈 lint 输出→身份指纹方案验证**（含"替换违规"负样本） | 半天 | **M1** | 指纹退化为 工具:规则:文件 粒度（牺牲同文件多违规分辨率）——记 ADR |
 | 风险路由与分支保护组合行为（CODEOWNERS/approver≠author） | **S6：测试仓配置分支保护+高低风险两类 PR 路由实测** | 半天 | **M1-M2 之交** | 路由降级为"高风险全量人审"（不做路径细分）——记 ADR |
 | Stop hook 在 headless/CI 场景行为未知 | S3：headless `claude -p` 下验证 Stop/PostToolUse 是否触发 | 半天 | M2 | hooks 定位收窄为"交互会话专用"，CI 侧全靠 required checks（ADR-003 已兼容） |

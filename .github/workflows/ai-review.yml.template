@@ -1,0 +1,55 @@
+# AI 评审外环（SPEC-19 的 ai-review required check）—— 模板，未启用
+#
+# 启用方法（ADR-013）：
+#   1. 配置凭据：gh secret set ANTHROPIC_API_KEY --repo <owner>/<repo>
+#   2. 去掉 .template 后缀：git mv .github/workflows/ai-review.yml.template .github/workflows/ai-review.yml
+#   3. 分支保护里把 ai-review 加入 required checks
+#
+# 设计要点（为什么这么写）：
+#   --bare        跳过 hooks/skills/plugins/MCP/CLAUDE.md 自动发现 → CI 结果不受任何人本地配置影响（可复现）
+#   --json-schema 强制 finding 带 severity → 让"block 级 finding ≥1 即失败"可机器判定（SPEC-19）
+#   宪法注入      把 constitution.md 作为评审基准喂进去，评审标准与平台自身一致
+
+name: ai-review
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  review:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 安装 Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: AI 评审（headless，结构化输出）
+        id: review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > /tmp/pr.diff
+          cat /tmp/pr.diff | claude --bare -p \
+            --append-system-prompt-file docs/constitution.md \
+            --append-system-prompt "你是本仓库的评审员。依据上面的工程宪法评审这个 PR diff。severity 取值：block（违反宪法/引入缺陷/无验证方式）、warn（可改进）、info（提示）。只报真实问题，不凑数。" \
+            --output-format json \
+            --json-schema '{"type":"object","properties":{"findings":{"type":"array","items":{"type":"object","properties":{"severity":{"type":"string","enum":["block","warn","info"]},"file":{"type":"string"},"issue":{"type":"string"},"suggestion":{"type":"string"}},"required":["severity","file","issue"]}}},"required":["findings"]}' \
+            | jq '.structured_output' > /tmp/findings.json
+          cat /tmp/findings.json
+
+      - name: 判定（block 级 ≥1 即失败，SPEC-19）
+        run: |
+          blocks=$(jq '[.findings[] | select(.severity=="block")] | length' /tmp/findings.json)
+          jq -r '.findings[] | "[\(.severity)] \(.file): \(.issue)"' /tmp/findings.json
+          if [ "$blocks" -gt 0 ]; then
+            echo "::error::AI 评审发现 $blocks 项 block 级问题，PR 不可合并"
+            exit 1
+          fi
+          echo "✅ 无 block 级 finding"

@@ -8,8 +8,10 @@
 
 ## A 组：spike（时间盒，先行，必须出结论）
 
-- [ ] T-1 S1 CI 冒烟：建测试用私有远程仓，跑最小 claude-code-action workflow，记录配置/权限/计费观察 ｜ SPEC-19 ｜ 复杂度 8 ｜ 依赖 T-2 ｜ 验证：`gh run list --repo <test-repo>` 显示至少 1 次 workflow 结束（成功或明确失败原因），结论写回 plan 风险表 S1 行
-- [ ] T-2 建平台仓 git 与测试远程仓：本地 `git init` + 首次提交；GitHub 建私有测试仓（仅供 S1/S6 拆雷） ｜ SPEC 无关（基建，ADR-009/010 前置） ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`git log --oneline | head -1` 有输出且 `gh repo view <test-repo> --json isPrivate` 返回 true
+- [x] T-1 S1 CI 冒烟：在 `Albertsun6/aisep729` 跑质量门禁 workflow + 调研 AI 评审接法 ｜ SPEC-19 ｜ 复杂度 8 ｜ 依赖 T-2 ｜ 验证：✅ `gh run list` → run 30583711579 `completed success` 13s（四阶段探针全绿）；结论已写回 plan S1 行
+  - **S1 结论**：①质量门禁外环**实测可用**（macos-latest runner，ADR-007 护栏生效）②AI 评审技术路径定为 `claude -p --bare` headless（ADR-013：`--bare` 保 CI 可复现、`--json-schema` 使 severity 可机器判定、无第三方 action 依赖）③**认证是硬约束**——bare 模式明确跳过 OAuth/keychain，必须 API key；订阅 token 用于 CI 另有受限报告（single-source 未证实）④**触发预定降级**：外环纯质量门禁，AI 评审留内环；`ai-review.yml.template` 已写好，配 secret 改名即启用（零改造）
+- [x] T-2 建平台仓 git 与远程仓：本地 `git init` + 首次提交（47 文件）；GitHub 私有仓 `Albertsun6/aisep729` 并推送 ｜ SPEC 无关（基建，ADR-009/010 前置） ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：✅ `git log --oneline | head -1` → `50c7da5`；`gh repo view Albertsun6/aisep729 --json isPrivate` → `true`
+  - 实况偏差（优于设计）：**平台仓自身即远程仓**，无需另建测试仓——S1/S6 直接在本仓拆雷，顺带真实自举（US-12）。`.gitignore` 排除 .m4a（可再生成大二进制）与 settings.local.json
 - [ ] T-3 S5 ratchet 身份指纹：对 demo 候选栈 lint 输出设计 `工具:规则:文件:指纹` 方案，构造"新增违规""替换违规（总数不变）"两负样本验证集合差 ｜ SPEC-14 ｜ 复杂度 8 ｜ 依赖 T-2 ｜ 验证：`bash tests/probe-negative/ratchet-*.sh` 两负样本均非 0 退出，结论写回 plan S5 行
 
 ## B 组：纵向骨架（端到端最小可用链路）
@@ -42,7 +44,7 @@
 
 | spike | 结论 | 落点（plan 行/ADR） |
 |---|---|---|
-| S1（T-1） | 待跑 | plan 风险表 S1 行 |
+| S1（T-1） | ✅ 质量门禁外环实测可用；AI 评审定为 headless `claude -p --bare`，认证是硬约束→按预定降级（模板待启用） | plan S1 行 · **ADR-013** |
 | S5（T-3） | 待跑 | plan 风险表 S5 行 |
 
 ## 砍线记录（超预算时填）
