@@ -1,0 +1,11 @@
+# 系统
+.DS_Store
+
+# 可再生成的大二进制产物（调研音频，由 /survey generate-audio.sh 重出）
+*.m4a
+
+# 个人本地覆盖（团队共享的是 settings.json）
+.claude/settings.local.json
+
+# 体检输出（e2e assess 默认写仓外，此处兜底）
+e2e-assess-*/
