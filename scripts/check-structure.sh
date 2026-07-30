@@ -51,7 +51,7 @@ nstage=$(ls docs/process/stages/stage-*.md 2>/dev/null | wc -l | tr -d ' ')
 echo "   ✅ 阶段定义文档 ${nstage} 份"
 
 # glossary 阶段词条节
-for s in 0 1 2 3; do
+for s in 0 1 2 3 4; do
   grep -qE "^## 阶段 ${s}" "$GLOSSARY" || { echo "   ❌ glossary 缺阶段 ${s} 词条节"; miss=$((miss+1)); }
 done
 

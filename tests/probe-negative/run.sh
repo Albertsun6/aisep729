@@ -98,6 +98,41 @@ cat > "$WORK/f3/tasks.md" <<'EOF'
 EOF
 expect "P3/66 人类工时回潮被拒（ADR-012）" 66 bash "$P3" "$WORK/f3"
 
+# ---------- 阶段4 探针（三通道契约 + 闭环状态机）----------
+echo "-- check-review.sh --"
+P4="$ROOT/.claude/skills/e2e-review/scripts/check-review.sh"
+mkdir -p "$WORK/f4"
+expect "P4/64 无上游 tasks" 64 bash "$P4" "$WORK/f4"
+# 任务未勾选 → 阶段3 未完成
+cat > "$WORK/f4/tasks.md" <<'EOF'
+# TASKS
+- [ ] T-1 还没做完 ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`
+EOF
+expect "P4/64 阶段3 任务未勾选" 64 bash "$P4" "$WORK/f4"
+printf '# TASKS\n- [x] T-1 done ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`\n' > "$WORK/f4/tasks.md"
+expect "P4/65 缺 review.md" 65 bash "$P4" "$WORK/f4"
+# 核心契约负样本：block 级 finding 来自 LLM 通道（AI 无阻断权）
+cat > "$WORK/f4/review.md" <<'EOF'
+# REVIEW
+## 定档结论
+高
+## 规模统计
+## 覆盖声明
+未审及原因：无
+## Findings
+| ID | severity | source | 类型 | 定位 | 问题 | 状态 | 闭环证据 |
+|---|---|---|---|---|---|---|---|
+| F-1 | block | llm-advisory | correctness | a.sh:1 | AI 说这里有问题 | open | - |
+## 环境留痕
+门禁③ 记录：
+- 决定：<待填>
+EOF
+expect "P4/66 block 来自 LLM 通道（违反三通道契约）" 66 bash "$P4" "$WORK/f4"
+# 状态机负样本：非法状态
+sed -i '' 's/| open | -/| 差不多了 | -/' "$WORK/f4/review.md"
+sed -i '' 's/llm-advisory/deterministic/' "$WORK/f4/review.md"
+expect "P4/66 finding 状态非法" 66 bash "$P4" "$WORK/f4"
+
 # ---------- ratchet 负样本（S5，独立脚本）----------
 echo "-- ratchet.sh --"
 expect "ratchet 六用例（含替换违规总数不变）" 0 bash "$ROOT/tests/probe-negative/ratchet-negative.sh"
