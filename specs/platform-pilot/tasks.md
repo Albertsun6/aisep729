@@ -18,10 +18,10 @@
 
 ## B 组：纵向骨架（端到端最小可用链路）
 
-- [ ] T-4 gate.sh 公共库：抽出门禁解析（读制品尾部记录块→输出状态/决定），三个既有探针改为 source 之 ｜ SPEC-5 ｜ 复杂度 3 ｜ 依赖 T-2 ｜ 验证：`grep -L "lib/gate.sh" .claude/skills/*/scripts/check-*.sh` 输出为空，且三探针复跑与改前结论一致
-- [ ] T-5 负样本测试框架：`tests/probe-negative/run.sh` + 每探针至少一个坏样本（64/65/66 各覆盖） ｜ SPEC-6/7 · 宪法 C13 ｜ 复杂度 3 ｜ 依赖 T-4 ｜ 验证：`bash tests/probe-negative/run.sh` 全绿（每个坏样本命中预期退出码）
-- [ ] T-6 自包含探针：`scripts/check-selfcontained.sh`（个人绝对路径/`~/.claude` 运行时依赖 grep，白名单数组在脚本头） ｜ SPEC-17 ｜ 复杂度 1 ｜ 依赖 T-2 ｜ 验证：`bash scripts/check-selfcontained.sh` 退出 0；构造含 `/Users/x` 的临时文件后退出非 0
-- [ ] T-7 结构探针（manifest 驱动）：`scripts/check-structure.sh` 读 skills-manifest 逐行比对 skill 目录三件套+阶段文档+glossary 节 ｜ SPEC-18 ｜ 复杂度 3 ｜ 依赖 T-4 ｜ 验证：`bash scripts/check-structure.sh` 对现状 PASS；临时移走某 templates/ 目录后 FAIL
+- [x] T-4 gate.sh 公共库：抽出门禁解析（读制品尾部记录块→输出状态/决定），三个既有探针改为 source 之 ｜ SPEC-5 ｜ 复杂度 3 ｜ 依赖 T-2 ｜ 验证：`grep -L "lib/gate.sh" .claude/skills/*/scripts/check-*.sh` 输出为空，且三探针复跑与改前结论一致
+- [x] T-5 负样本测试框架：`tests/probe-negative/run.sh` + 每探针至少一个坏样本（64/65/66 各覆盖） ｜ SPEC-6/7 · 宪法 C13 ｜ 复杂度 3 ｜ 依赖 T-4 ｜ 验证：`bash tests/probe-negative/run.sh` 全绿（每个坏样本命中预期退出码）
+- [x] T-6 自包含探针：`scripts/check-selfcontained.sh`（个人绝对路径/`~/.claude` 运行时依赖 grep，白名单数组在脚本头） ｜ SPEC-17 ｜ 复杂度 1 ｜ 依赖 T-2 ｜ 验证：`bash scripts/check-selfcontained.sh` 退出 0；构造含 `/Users/x` 的临时文件后退出非 0
+- [x] T-7 结构探针（manifest 驱动）：`scripts/check-structure.sh` 读 skills-manifest 逐行比对 skill 目录三件套+阶段文档+glossary 节 ｜ SPEC-18 ｜ 复杂度 3 ｜ 依赖 T-4 ｜ 验证：`bash scripts/check-structure.sh` 对现状 PASS；临时移走某 templates/ 目录后 FAIL
 
 ## C 组：增量（骨架之上）
 
@@ -32,10 +32,12 @@
 
 | 组 | 点数 | 已完成 | 状态 |
 |---|---|---|---|
-| A（spike：T-1/2/3） | 17（8+1+8） | 0 | 未开始 |
-| B（骨架：T-4~7） | 10（3+3+1+3） | 0 | 未开始 |
-| C（增量：T-8/9） | 11（3+8） | 0 | 未开始 |
-| **合计** | **38 点** | 0 | - |
+| A（spike：T-1/2/3） | 17（8+1+8） | 17 | ✅ 完成（两个 spike 均出结论） |
+| B（骨架：T-4~7） | 10（3+3+1+3） | 10 | ✅ 完成 |
+| C（增量：T-8/9） | 11（3+8） | 0 | 进行中 |
+| **合计** | **38 点** | **27（71%）** | - |
+
+**返工记录**（熔断信号，ADR-012）：`$var` 紧跟中文标点被 bash 并入变量名——**同一类 bug 犯 3 次**（ratchet.sh / run.sh / check-structure.sh）。未触发熔断（每次一改即过，非同一任务连续失败 3 次），但已固化为常驻探针 `scripts/check-shell-traps.sh` 并入 CI——**这才是返工信号该有的用法：不是罚，是把教训变成拦得住的东西**。
 
 > **容量说明**：M1 名义容量 21 点，实际 38 点。**不按点数砍范围**——AI 执行下点数只表达"哪些任务难、值得先拆"，不是产能上限。真正的熔断信号改为**返工次数**（异构评审#9 的纪律换度量落地，ADR-012）：
 > - 任一任务**验证连续失败 3 次** → 停下报告，按 plan 砍线（该任务降级或推后）

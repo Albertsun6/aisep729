@@ -27,5 +27,17 @@ jobs:
       - name: 阶段3 探针（tasks 逐条验证行/复杂度点）
         run: bash .claude/skills/e2e-implement/scripts/check-tasks.sh specs/platform-pilot/
 
+      - name: 平台自审 · 结构（六件套/manifest 驱动/宪法 C4）
+        run: bash scripts/check-structure.sh
+
+      - name: 平台自审 · 自包含（宪法 C9 / SPEC-17）
+        run: bash scripts/check-selfcontained.sh
+
+      - name: 平台自审 · bash 高危写法（M1 期间同一 bug 犯三次的教训）
+        run: bash scripts/check-shell-traps.sh
+
+      - name: 探针负样本（宪法 C13：探针自身必须能证伪）
+        run: bash tests/probe-negative/run.sh
+
       - name: 汇总
-        run: echo "✅ 全部阶段探针通过（quality-gates）"
+        run: echo "✅ 全部探针 + 负样本通过（quality-gates）"

@@ -392,7 +392,7 @@ managed policy CLAUDE.md（组织强制，IT 下发）
 - **事实 tiebreaker**: 未触发（Round 1 收敛，无剩余分歧）
 - **人类介入**: 无（无未收敛分歧）
 - **v2 修订（2026-07-30，用户指令：并入配套调研）**: 引入《企业级软件开发端到端阶段划分》调研结论——①两视图原则（ISO 12207:2026 阶段/过程分离）：新增 6 段治理底图 × 产物状态机映射表；②状态机补两端：门禁⓪ 立项/下注（PR-FAQ）+ 门禁⑤ 退役评审（Google deprecation / EU CRA），四门禁扩为六门禁；③门禁密度按风险配置（NASA 硬 gate ↔ Amazon 一页纸谱系，证据触发）；④验证税实证进四级验证设计依据（Faros +91% review / METR 慢 19% / Anthropic 40 万会话）；⑤目录树 +5（prfaq.md、prr.md、deprecation.md、e2e-discovery、e2e-retire）；⑥DORA 五指标入 L4 度量；⑦风险 +2（EU CRA 合规、验证税厂商依赖）。新增引用 14 个 URL 全部抽查存活（iso.org 403 反爬沿用配套报告核验记录）
-- **Output**: /Users/yongqian/Desktop/AISEP729/Claude企业级E2E研发平台-完整报告.md（v2.1 由 Claude企业级SDLC平台-* 更名）
+- **Output**: Claude企业级E2E研发平台-完整报告.md（v2.1 由 Claude企业级SDLC平台-* 更名）
 - **Filename collision**: none
 
 #### Phase 6 辩论历史
@@ -404,7 +404,7 @@ managed policy CLAUDE.md（组织强制，IT 下发）
 | ① 补齐 X1/X2 并集审计链与成功标准核算 | accept | Brief 成功标准应在成稿可验证；已补附录 A（58 源清单 + 6 条未采用 disposition + 三项标准核算） |
 | ② 降两处成熟度表述：spec-kit "每阶段人审"过强；"积木已稳定"与 v2.1.218 行为变更不符；自建组合企业成熟度 5→? | accept | 实查 [spec-kit workflows.md](https://github.com/github/spec-kit/blob/main/docs/reference/workflows.md)：显式 gate 仅 review-spec/review-plan、shell step 无沙箱；[v2.1.218](https://github.com/anthropics/claude-code/releases/tag/v2.1.218) 实存。已改写正文 3 处并调降矩阵评分 |
 | ③ hooks 非安全边界（best-effort/fail-open，硬策略靠 permission system；不可绕过门禁在服务端）+ 补供应链风险（审计/锁版本/bus-factor/license/SBOM） | accept | 实查[官方 hooks 参考](https://code.claude.com/docs/en/hooks)原文 "Because the `if` filter is best-effort, use the permission system rather than a hook to enforce a hard allow or deny"。已重写 hooks 定位 4 处、验证层级改四级、待验证风险 +2 条 |
-- **HTML**: /Users/yongqian/Desktop/AISEP729/Claude企业级E2E研发平台-完整报告.html
-- **PDF**: /Users/yongqian/Desktop/AISEP729/Claude企业级E2E研发平台-完整报告.pdf
-- **Audio(概要)**: /Users/yongqian/Desktop/AISEP729/Claude企业级E2E研发平台-音频概要.m4a（v2 重制，约 16.2 分钟，edge-tts 晓晓）
-- **Audio(完整)**: /Users/yongqian/Desktop/AISEP729/Claude企业级E2E研发平台-完整音频.m4a（v2 重制，约 25.2 分钟，全文口语稿，edge-tts 晓晓）
+- **HTML**: Claude企业级E2E研发平台-完整报告.html
+- **PDF**: Claude企业级E2E研发平台-完整报告.pdf
+- **Audio(概要)**: Claude企业级E2E研发平台-音频概要.m4a（v2 重制，约 16.2 分钟，edge-tts 晓晓）
+- **Audio(完整)**: Claude企业级E2E研发平台-完整音频.m4a（v2 重制，约 25.2 分钟，全文口语稿，edge-tts 晓晓）
