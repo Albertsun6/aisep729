@@ -25,8 +25,8 @@
 
 ## C 组：增量（骨架之上）
 
-- [ ] T-8 `e2e` CLI 骨架 + `doctor` 子命令：分层检查基础层/远程层/目标栈层，缺项给安装指引 ｜ SPEC-26 · ADR-010 ｜ 复杂度 3 ｜ 依赖 T-4 ｜ 验证：`bash bin/e2e doctor` 退出 0；`PATH= bash bin/e2e doctor` 缺工具时退出非 0 且输出含安装指引
-- [ ] T-9 `e2e init` 最小版：按 manifest 生成目录树（M1 砍线内：不出引导语），幂等不覆盖，生成物页脚含门禁分级标注 ｜ SPEC-9/10/11 · ADR-009 ｜ 复杂度 8 ｜ 依赖 T-7,T-8 ｜ 验证：空临时仓跑 init 后 `bash scripts/check-structure.sh` PASS；重复跑 init 退出 2 且既有文件 md5 不变；生成 CLAUDE.md `wc -l` ≤200 且含 `@docs/constitution.md`
+- [x] T-8 `e2e` CLI 骨架 + `doctor` 子命令：分层检查基础层/远程层/目标栈层，缺项给安装指引 ｜ SPEC-26 · ADR-010 ｜ 复杂度 3 ｜ 依赖 T-4 ｜ 验证：`bash bin/e2e doctor` 退出 0；`PATH= bash bin/e2e doctor` 缺工具时退出非 0 且输出含安装指引
+- [x] T-9 `e2e init` 最小版：按 manifest 生成目录树（M1 砍线内：不出引导语），幂等不覆盖，生成物页脚含门禁分级标注 ｜ SPEC-9/10/11 · ADR-009 ｜ 复杂度 8 ｜ 依赖 T-7,T-8 ｜ 验证：空临时仓跑 init 后 `bash scripts/check-structure.sh` PASS；重复跑 init 退出 2 且既有文件 md5 不变；生成 CLAUDE.md `wc -l` ≤200 且含 `@docs/constitution.md`
 
 ## 进度与容量（复杂度点）
 
@@ -34,8 +34,8 @@
 |---|---|---|---|
 | A（spike：T-1/2/3） | 17（8+1+8） | 17 | ✅ 完成（两个 spike 均出结论） |
 | B（骨架：T-4~7） | 10（3+3+1+3） | 10 | ✅ 完成 |
-| C（增量：T-8/9） | 11（3+8） | 0 | 进行中 |
-| **合计** | **38 点** | **27（71%）** | - |
+| C（增量：T-8/9） | 11（3+8） | 11 | ✅ 完成 |
+| **合计** | **38 点** | **38（100%）** | ✅ M1 完成 |
 
 **返工记录**（熔断信号，ADR-012）：`$var` 紧跟中文标点被 bash 并入变量名——**同一类 bug 犯 3 次**（ratchet.sh / run.sh / check-structure.sh）。未触发熔断（每次一改即过，非同一任务连续失败 3 次），但已固化为常驻探针 `scripts/check-shell-traps.sh` 并入 CI——**这才是返工信号该有的用法：不是罚，是把教训变成拦得住的东西**。
 
