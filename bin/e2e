@@ -264,7 +264,13 @@ cmd_assess() {
   if git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
     commits=$(git -C "$repo" rev-list --count HEAD 2>/dev/null || echo 0)
     [ -f "$(git -C "$repo" rev-parse --git-dir)/shallow" ] && shallow="（shallow clone）"
+    # 判据要数**churn 窗口内**的 commit，不是全部历史：
+    # 一个 500 commits 但近一年没动过的老仓，按全量算 hist_ok=1，
+    # 而 `--since="1 year ago"` 的 churn 表是**空的** → 热点档位建立在零数据上。
+    win=$(git -C "$repo" rev-list --count --since="1 year ago" HEAD 2>/dev/null || echo 0)
+    : "${win:=0}"
     [ "$commits" -lt 20 ] && hist_ok=0
+    [ "$win" -lt 20 ] && hist_ok=0
   else
     commits=0; hist_ok=0
   fi
@@ -287,7 +293,9 @@ cmd_assess() {
             printf '| %s | %s | %s | %s |\n' "$f" "$c" "$local_lines" "$((c * local_lines))"
           done | sort -t'|' -k5 -rn | head -20
     else
-      echo "⚠️ **历史不足，热点分析跳过**（S4 降级）：仅 ${commits} commits${shallow}，churn 数据不可信。"
+      echo "⚠️ **历史不足，热点分析跳过**（S4 降级）：全量 ${commits} commits、**近一年 ${win} commits**${shallow}——churn 数据不可信。"
+      echo
+      echo "> 判据看的是**近一年**的 commit 数：老仓即使历史很长，近期不活跃时 churn 也没有意义。"
       echo
       echo "改用**规模清单**（非空行数 Top 20）作为替代信号——注意：大文件 ≠ 高风险，仅供人工判断起点。"
       echo
@@ -349,12 +357,28 @@ cmd_assess() {
     echo
     printf '| 档 | 匹配路径（glob） | 依据 | 人审 |\n|---|---|---|---|\n'
     printf '| **高** | `docs/constitution.md` `docs/process/risk-tiers.md` `.github/workflows/**` `**/*secret*` `**/*credential*` `**/auth/**` `**/*migration*` | 规则本身/CI/凭据/认证/数据迁移 | 强制 |\n'
+    # 热点行**按模式抽**，不按固定行号：
+    # 旧写法 `head -8 | tail -3` 取到的是空行+表头+分隔行，于是 glob 恒为字面量 `---`
+    # ——一条永远匹配不到任何文件的"高风险"规则，看着有、实际没有（冷启动实测）。
+    # 而且正常/降级两个分支的表格起始行号还不一样，固定偏移在哪个分支上都不对。
     if [ "$hist_ok" -eq 1 ]; then
-      echo "$(head -8 "$out/hotspots.md" | tail -3 | awk -F'|' 'NF>2{gsub(/ /,"",$2); if($2!="文件") printf "%s ", $2}')" | \
-        sed 's/^/| **高（热点）** | /; s/$/ | churn×complexity Top（assess 实测） | 强制 |/'
+      hot=$(awk -F'|' 'NF>2 {
+               v=$2; gsub(/^[ \t]+|[ \t]+$/,"",v);
+               if (v!="" && v!="文件" && v !~ /^-+$/) { printf "`%s` ", v; n++ }
+               if (n>=3) exit
+             }' "$out/hotspots.md")
+      if [ -n "$(printf '%s' "$hot" | tr -d '[:space:]')" ]; then
+        printf '| **高（热点）** | %s| churn×complexity Top 3（assess 实测） | 强制 |\n' "$hot"
+      else
+        # 抽不出来就**说出来**，不要写一行匹配不到东西的假规则
+        printf '| **高（热点）** | （未能从 hotspots.md 抽出文件名——请人工填）| assess 抽取失败，勿当作"无热点" | 强制 |\n'
+      fi
     fi
     printf '| **中** | `src/**` `lib/**` `app/**` `scripts/**` `bin/**` | 可执行代码 | 建议 |\n'
     printf '| **低** | `docs/**` `*.md` `.gitignore` | 文字与配置 | 否 |\n'
+    # 兜底档必须有：否则新目录、新语言、新产物**不匹配任何 glob** = 没有档
+    # = 事实上按最低档处理，而没有任何人做过这个决定（fail-open）。
+    printf '| **中（兜底）** | 以上都不匹配的任何路径 | 未分类不得默认为低风险——先按中档人工判 | 建议 |\n'
     echo
     echo "## 升档触发（默认启发值，非实证安全线）"
     echo "- 净改动 >400 行 或 文件数 >15 → 升档；>1000 行 → 默认要求拆分"
