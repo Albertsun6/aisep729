@@ -289,6 +289,24 @@ cd /path/to/your-project
 
 ---
 
+### 3.1 另一种接入：插件市场（只拿能力层，**不含门禁**）
+
+```bash
+claude plugin marketplace add Albertsun6/aisep729
+claude plugin install e2e-platform@aisep729-e2e
+```
+
+**实测跑通**：装完在 `~/.claude/plugins/cache/` 下拿到 7 个 skill + 3 个 agent + 2 个 hook，
+版本目录名含 commit SHA，可追溯。
+
+> ⚠️ **只装插件拿不到探针，也就没有门禁。** 插件只分发 `.claude/` 能力层，
+> `bin/e2e`、`scripts/check-*.sh`、`tests/probe-negative/`、`docs/process/` **都不在内**。
+> skill 会照常引导流程，但每一步的「验证」环节会因找不到探针而无法执行。
+> **不得**把「装了插件」等同于「接入了平台」——要完整门禁走 §3 的 `e2e init`。
+> 详见 `docs/architecture/adr/ADR-015-plugin-marketplace-distribution.md`。
+>
+> 两种方式**建议二选一**：同时用会出现同名 skill，解析优先级未验证。
+
 ## 4. 存量治理 playbook（brownfield）
 
 存量项目的典型状态：代码混乱、文档不全、架构不合理。
