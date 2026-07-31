@@ -13,6 +13,11 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 
 # 白名单：文件路径（说明性引用，非运行时依赖）
+#
+# 按**精确路径**匹配。文件一旦移动，白名单即失效、探针重新报错 —— 这是**有意的**：
+# 路径变了就该重新审视这条豁免是否仍成立，而不是自动跟随。
+# 实测：三份调研报告从仓根移进 docs/ 后当场被抓（2026-07-31）。
+# 移动文件后请同步更新本表，别图省事改成模糊匹配。
 WHITELIST=(
   "docs/architecture/adr/ADR-006-vendored-productization.md"  # vendored 源说明
   "docs/architecture/adr/ADR-013-ci-ai-review-headless.md"    # 认证链说明
@@ -23,9 +28,9 @@ WHITELIST=(
   "docs/process/skills-manifest.md"                           # vendored 映射登记
   "specs/platform-pilot/prfaq.md"                             # 深坑段：说明"隐性个人依赖"风险
   "specs/platform-pilot/tasks.md"                             # T-6 任务描述含被检模式
-  "Claude企业级E2E研发平台-完整报告.md"                        # 调研报告：CLAUDE.md 官方四层分层说明
-  "Claude企业级E2E研发平台-完整报告.html"                      # 同上（HTML 版）
-  "E2E研发平台-全局视图.html"                                  # 架构图：标注"不依赖个人 ~/.claude"
+  "docs/Claude企业级E2E研发平台-完整报告.md"                        # 调研报告：CLAUDE.md 官方四层分层说明
+  "docs/Claude企业级E2E研发平台-完整报告.html"                      # 同上（HTML 版）
+  "docs/E2E研发平台-全局视图.html"                                  # 架构图：标注"不依赖个人 ~/.claude"
   "docs/architecture/adr/ADR-015-plugin-marketplace-distribution.md"  # 说明 Claude Code 插件缓存落点，非运行时依赖
   "docs/implementation-manual.md"                             # §3.1 告知插件装到哪，读者需据此自查
   "specs/platform-pilot/review.md"                          # F-10：描述插件卸载后的缓存残留位置
