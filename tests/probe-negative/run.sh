@@ -379,35 +379,192 @@ else
   echo "  ⏭  跳过（本仓无实施手册，属平台专属交付物）"
 fi
 
+# ---------- CRITICAL 回归：门禁台账不得被正文伪造（首匹配胜）----------
+# 安全评审 critical #1：旧实现取全文首个 `- 决定：`，而门禁块契约是**尾部四行**。
+# 执行者在正文早处写 `- 决定：go`、尾部保持 <待填>，探针即判 PASS 且下游打印 GATE0 ✓——
+# **人翻到文末只看到"待批"，机器却认为已批准**。同时击穿 C1 与 C14，且自批不可见。
+echo "-- 门禁台账防伪（尾部锚定 + 歧义 fail-closed）--"
+FW="$WORK/forge"; mkdir -p "$FW"
+mk_forged() {  # mk_forged <正文里伪造的决定值> <尾部块决定值>
+  {
+    echo '# PRFAQ：t'; echo
+    echo '## 未来新闻稿'; echo '正文里的一行：'; echo "- 决定：$1"; echo
+    for h in 客户与痛点 差异化主张 最险假设 假设陈述 Appetite 熔断线 深坑 No-gos 不做什么; do
+      echo "## $h"; echo x; echo; done
+    echo '## FAQ'; echo 'Q: a'; echo; echo 'A: b'; echo
+    echo '---'; echo '门禁⓪ 记录：'
+    echo '- 批准人：<待填>'; echo "- 决定：$2"; echo '- 日期：<待填>'; echo '- 备注：<待填>'
+  } > "$FW/prfaq.md"
+}
+mk_forged go '<待填>'
+expect "台账/66 正文伪造 go + 尾部待批 → 必须拒绝（不得判 PASS）" 66 \
+  bash "$ROOT/.claude/skills/e2e-discovery/scripts/check-prfaq.sh" "$FW/prfaq.md"
+total=$((total+1))
+if bash "$ROOT/.claude/skills/e2e-discovery/scripts/check-prfaq.sh" "$FW/prfaq.md" 2>&1 | grep -q "决定：go"; then
+  echo "  ❌ 探针把正文伪造行当成了决定值（首匹配胜复发）"; fails=$((fails+1))
+else
+  echo "  ✅ 探针未采信正文伪造行"
+fi
+# 歧义即 fail-closed：两条决定行（一真一假）也必须拒
+mk_forged go 批准
+total=$((total+1))
+if bash "$ROOT/.claude/skills/e2e-discovery/scripts/check-prfaq.sh" "$FW/prfaq.md" 2>&1 | grep -qE "UNKNOWN|非法|MISSING"; then
+  echo "  ✅ 多条决定行判 UNKNOWN（歧义即拒绝，不猜哪条是真的）"
+else
+  echo "  ❌ 多条决定行未判歧义"; fails=$((fails+1))
+fi
+
+# ---------- CRITICAL 回归：E2E_PR 参数注入 ----------
+# 安全评审 critical #2：`gh pr view ${E2E_PR:-}` 未加引号，bash 词分割使
+# E2E_PR="--repo cli/cli 6000" 展开成 gh pr view --repo cli/cli 6000 → 查了**别人的仓**。
+# 填一个任意公开仓里 MERGED+全绿的 PR 号，门禁③ 就用别人仓的证据开门。
+echo "-- 门禁③ E2E_PR 参数注入 --"
+P5I="$ROOT/.claude/skills/e2e-release/scripts/check-release.sh"
+IW="$WORK/prinj/specs/x"; mkdir -p "$IW"
+printf -- '# TASKS\n\n- [x] T-1 done ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`\n' > "$IW/tasks.md"
+total=$((total+1))
+if ( cd "$WORK/prinj" && E2E_PR="--repo cli/cli 6000" bash "$P5I" specs/x/ --gate-only 2>&1 \
+     | grep -q "E2E_PR 非法" ); then
+  echo "  ✅ 注入型 E2E_PR 被白名单拒绝"
+else
+  echo "  ❌ 注入型 E2E_PR 未被拦（参数注入复发）"; fails=$((fails+1))
+fi
+
 # ---------- 门禁台账：决定值非法必须被抓（fail-open 修复回归）----------
 # 起源：7 个阶段探针里 6 个只用 gate_status **显示**决定值，从不校验它属于契约集合。
 # 门禁④ 被填成"放行"（契约是 批准/打回）后 check-release.sh --final 判 PASS 放行，
 # 直到门禁⑤ 入口才炸。台账层 fail-open —— 写错一个词能过自己那道门。
 echo "-- 门禁决定值合法性（gate_assert_legal）--"
 GW="$WORK/gatelegal"; mkdir -p "$GW"
+# fixture 必须**结构完整**，否则合法值用例会因缺章节退 66，
+# 那样 `expect ... 0` 断言的就不是"决定值合法"而是别的（评审 finding 2 修复的配套）。
 mk_prfaq() {  # mk_prfaq <决定值>
-  printf -- '# PRFAQ：t\n\n## 假设陈述\nx\n\n## Appetite\nx\n\n## 熔断线\nx\n\n## 深坑\nx\n\n## No-gos\nx\n\n## FAQ\nQ: a\nA: b\n\n---\n门禁⓪ 记录：\n- 批准人：tester\n- 决定：%s\n- 日期：2026-01-01\n- 备注：t\n' "$1" > "$GW/prfaq.md"
+  {
+    printf -- '# PRFAQ：t\n\n'
+    for h in 未来新闻稿 客户与痛点 差异化主张 最险假设 假设陈述 Appetite 熔断线 深坑 No-gos 不做什么; do
+      printf -- '## %s\n\n占位内容一行。\n\n' "$h"
+    done
+    printf -- '## FAQ\n\nQ: a\n\nA: b\n\n'
+    printf -- '---\n门禁⓪ 记录：\n- 批准人：tester\n- 决定：%s\n- 日期：2026-01-01\n- 备注：t\n' "$1"
+  } > "$GW/prfaq.md"
 }
 P0G="$ROOT/.claude/skills/e2e-discovery/scripts/check-prfaq.sh"
 
+# 断言**退出码**而非消息文本（评审 finding 2 实证）：
+# 早期只 grep "决定值非法"，于是把接线退化成 `gate_assert_legal ... || true`
+# （打印但不阻断，rc=0）时这 6 条用例**仍全绿** —— 把"真拦住了"降格成了"打印了"。
 for bad in 放行 批准 随便写; do
   mk_prfaq "$bad"
-  total=$((total+1))
-  if bash "$P0G" "$GW/prfaq.md" 2>&1 | grep -q "决定值非法"; then
-    echo "  ✅ 门禁⓪ 拒绝非法决定值「${bad}」"
-  else
-    echo "  ❌ 门禁⓪ 放过了非法决定值「${bad}」——台账 fail-open 复发"; fails=$((fails+1))
-  fi
+  expect "门禁⓪/66 拒绝非法决定值「${bad}」（断言退出码非 0）" 66 bash "$P0G" "$GW/prfaq.md"
 done
 for good in go modify kill; do
   mk_prfaq "$good"
-  total=$((total+1))
-  if bash "$P0G" "$GW/prfaq.md" 2>&1 | grep -q "决定值非法"; then
-    echo "  ❌ 门禁⓪ 误判合法值「${good}」为非法"; fails=$((fails+1))
-  else
-    echo "  ✅ 门禁⓪ 接受合法值「${good}」"
-  fi
+  expect "门禁⓪/0 接受合法值「${good}」" 0 bash "$P0G" "$GW/prfaq.md"
 done
+
+# ---- release / retire 的 gate_assert_legal 调用点（评审 finding 3：插桩实测零覆盖）----
+# 这两道门（④⑤）恰是 gate.sh 注释里引用的事故现场（门禁④被填成"放行"→ --final 判 PASS），
+# 但修复打在了**没有任何测试跑得到的行**上：--gate-only 提前 exit 0，非 gate-only 又在缺文件处 exit 65。
+# 造出能走完上游门禁的 fixture，让这两行真的被执行到。
+GR="$WORK/gate45"; mkdir -p "$GR/specs/x" "$GR/docs/runbooks"
+printf -- '# TASKS
+
+- [x] T-1 done ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`
+' > "$GR/specs/x/tasks.md"
+mk_release() {  # mk_release <门禁④决定值>
+  {
+    printf '# RELEASE：x
+
+## 门禁③ 入口证据
+
+| 路径 | 怎么验的 | 实际证据 |
+|---|---|---|
+| 本地 | merge commit | fixture |
+
+'
+    printf '## PRR 核对表
+
+- [x] PRR-1 项 ｜ 证据：`true` ｜ 核对人：tester
+
+'
+    printf '## 发布策略
+
+fixture
+
+## 回滚预案
+
+| 触发判据 | 回滚动作 | RTO | 不可逆点 |
+|---|---|---|---|
+| x | `git revert HEAD` | 5 分钟 | 无 |
+
+'
+    printf -- '- **回滚演练证据**：fixture 实跑
+
+## SLO 与监控
+
+| SLI | 目标 SLO | 错误预算 | 告警规则 | 指向 runbook |
+|---|---|---|---|---|
+| x | 99.9%% | 43m | a | ## 故障处理 |
+
+'
+    printf -- '---
+门禁④ 记录：
+- 批准人：tester
+- 决定：%s
+- 日期：2026-01-01
+- 备注：fixture
+' "$1"
+  } > "$GR/specs/x/release.md"
+  printf '# Runbook
+
+## 启动
+
+跑 `x`。健康检查：`true`。
+
+## 回滚
+
+跑 `git revert HEAD`。校验：`true`。不可逆点：无。RTO 5 分钟。
+
+## 故障处理
+
+症状 A → 首诊 `true` → 处置 X → 升级 Y。
+' > "$GR/docs/runbooks/x.md"
+}
+P5G="$ROOT/.claude/skills/e2e-release/scripts/check-release.sh"
+mk_release 放行
+( cd "$GR" && E2E_TEST_CMD=true E2E_BASE=none bash "$P5G" specs/x/ >/dev/null 2>&1 ); rc=$?
+total=$((total+1))
+if [ "${rc}" -ne 0 ]; then
+  echo "  ✅ 门禁④ 拒绝非法决定值「放行」（rc=${rc}）"
+else
+  echo "  ❌ 门禁④ 放过了非法决定值「放行」——finding 3 的调用点仍无效"; fails=$((fails+1))
+fi
+mk_release 批准
+( cd "$GR" && E2E_TEST_CMD=true E2E_BASE=none bash "$P5G" specs/x/ >/dev/null 2>&1 ); rc2=$?
+total=$((total+1))
+# 合法值下不应因"决定值非法"而失败（可能因其它结构项失败，故只断言不含该消息）
+if ( cd "$GR" && E2E_TEST_CMD=true E2E_BASE=none bash "$P5G" specs/x/ 2>&1 | grep -q "决定值非法" ); then
+  echo "  ❌ 门禁④ 误判合法值「批准」为非法"; fails=$((fails+1))
+else
+  echo "  ✅ 门禁④ 接受合法值「批准」（rc=${rc2}，非决定值原因）"
+fi
+
+# ---------- review 探针：有 Findings 章节却抽到 0 条不得判 PASS ----------
+# 实测踩过：平台自举评审用 P-N 前缀写了 12 条 finding，探针只认 F-N，
+# 于是报「finding 0 条」并 PASS —— 所有 findings 相关检查（source 合法性、
+# block 闭环、三通道契约）**一条都没跑**，却看起来是绿的。
+echo "-- review 探针：findings 抽取失效不得静默 PASS --"
+FE="$WORK/fext/specs/x"; mkdir -p "$FE"
+printf -- '# TASKS\n\n- [x] T-1 done ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`\n' > "$FE/tasks.md"
+{
+  printf '# REVIEW：x\n\n## 定档结论\n\n- **风险档**：中\n\n'
+  printf '## 覆盖声明\n\n- **已审**：a\n- **未审及原因**：无\n\n'
+  printf '## Findings\n\n| ID | severity | source | 类型 | 定位 | 问题 | 状态 | 证据 |\n|---|---|---|---|---|---|---|---|\n'
+  printf '| P-1 | warn | deterministic | correctness | a.sh:1 | 用了错误前缀 | fixed | `true` |\n\n'
+  printf -- '---\n门禁③ 记录：\n- 批准人：tester\n- 决定：批准\n- 日期：2026-01-01\n- 备注：t\n'
+} > "$FE/review.md"
+expect "review/66 有 Findings 章节却抽到 0 条（前缀写错）必须拒绝" 66 \
+  bash "$ROOT/.claude/skills/e2e-review/scripts/check-review.sh" "$FE/"
 
 # ---------- 三通道契约：block 只能来自 deterministic（改门禁探针后的回归）----------
 # 起源：check-review.sh 原用**整行子串匹配**判违规，于是一条 source=deterministic

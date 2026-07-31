@@ -28,6 +28,7 @@ WHITELIST=(
   "E2E研发平台-全局视图.html"                                  # 架构图：标注"不依赖个人 ~/.claude"
   "docs/architecture/adr/ADR-015-plugin-marketplace-distribution.md"  # 说明 Claude Code 插件缓存落点，非运行时依赖
   "docs/implementation-manual.md"                             # §3.1 告知插件装到哪，读者需据此自查
+  "specs/platform-pilot/review.md"                          # F-10：描述插件卸载后的缓存残留位置
 )
 
 in_whitelist() {

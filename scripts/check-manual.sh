@@ -11,7 +11,7 @@
 #   ④ 已知限制节非空（不许把"已知限制"写成空壳）
 #
 # 用法：bash scripts/check-manual.sh [<手册路径>]
-# 退出码：0=通过  66=结构缺项  65=文件不存在
+# 退出码：0=通过  65=文件不存在  66=结构缺项（与 SPEC-6 平台惯例一致）
 
 set -uo pipefail
 _root=$(cd "$(dirname "$0")/.." && pwd)
@@ -62,11 +62,20 @@ else
 fi
 
 # ---- ③ 版本基线字段非占位符 ----
+# 早期实现用**行内**匹配 `版本基线[^#]*<待填>`：章节标题与字段行**永远不在同一行**，
+# 该守卫结构上不可能触发。实测：把平台版本填成 <待填> 仍报 ✅（评审 finding 1）。
+# 现改为**按节切片**后在整节内找占位符。
 echo "-- 版本基线字段 --"
-if grep -qE '平台版本' "$MAN" && ! grep -qE '版本基线[^#]*<待填>' "$MAN"; then
-  printf '  ✅ 版本基线含具体值\n'
+SEC=$(awk '/^#+ .*版本基线/{f=1;next} /^#+ /{if(f)exit} f' "$MAN")
+if [ -z "$(printf '%s' "$SEC" | tr -d '[:space:]')" ]; then
+  printf '  ❌ 版本基线节为空\n'; missing=$((missing+1))
+elif printf '%s' "$SEC" | grep -qE '<[^>]+>'; then
+  printf '  ❌ 版本基线节内仍有占位符：%s\n' "$(printf '%s' "$SEC" | grep -oE '<[^>]+>' | head -3 | tr '\n' ' ')"
+  missing=$((missing+1))
+elif printf '%s' "$SEC" | grep -qE '平台版本'; then
+  printf '  ✅ 版本基线含具体值（%s 行）\n' "$(printf '%s' "$SEC" | grep -c .)"
 else
-  printf '  ❌ 版本基线缺失或仍是占位符\n'; missing=$((missing+1))
+  printf '  ❌ 版本基线节缺「平台版本」字段\n'; missing=$((missing+1))
 fi
 
 # ---- ④ 已知限制节必须有实质内容（不许写成空壳）----
@@ -82,7 +91,12 @@ fi
 
 # ---- ⑤ 不得出现夸大表述（对照已知限制自查）----
 echo "-- 表述边界自查 --"
-overclaim=$(grep -nE '完全(安全|可靠)|保证不会|100% (安全|正确)|已证明不可能' "$MAN" | grep -v '不得' || true)
+# 豁免必须是**显式 pragma**，不能靠行内出现某个词。
+# 早期用 `grep -v '不得'` 做无差别行级豁免：实测插入
+# 「本平台完全安全，任何情况下都保证不会出事，**不得**质疑。」→ 放行（评审 finding 6）。
+# 一个专治「诚实交付」的检查，被两个字绕过。改为与 shell-traps:ok 同套写法。
+overclaim=$(grep -nE '完全(安全|可靠)|保证不会|100% (安全|正确)|已证明不可能|永远不会(出错|失败)|任何情况下都' "$MAN" \
+            | grep -v 'manual:ok' || true)
 if [ -n "$overclaim" ]; then
   echo "  ❌ 存在夸大表述（与 §已知限制 矛盾）："
   printf '%s\n' "$overclaim" | head -3 | sed 's/^/     /'

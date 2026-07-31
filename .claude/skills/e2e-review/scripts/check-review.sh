@@ -32,6 +32,13 @@ grep -qE "未审.*：" "$review" || { echo "MISSING: 覆盖声明缺'未审及�
 
 # ---- Findings 表：source 必须是三通道之一 ----
 rows=$(grep -cE "^\| F-[0-9]+ \|" "$review" || true)
+# fail-open 修复：有 ## Findings 章节却一条都抽不到 = 抽取失效（如 finding ID 用了别的前缀），
+# 此时下面所有 findings 相关检查（source 合法性、block 闭环、通道契约）**全部不会执行**，
+# 探针却照样打印 PASS。实测踩过：用 P-N 前缀写了 12 条 finding，探针报「finding 0 条」并 PASS。
+if grep -qE '^#+ .*Findings' "$review" && [ "$rows" -eq 0 ]; then
+  echo "MISSING: 有 Findings 章节但抽到 0 条 —— 判为抽取失效（finding 行须为 \`| F-N | ... |\`）"
+  missing=$((missing+1))
+fi
 if [ "$rows" -gt 0 ]; then
   bad_src=$(grep -E "^\| F-[0-9]+ \|" "$review" | grep -cvE "deterministic|llm-advisory|llm-triage" || true)
   [ "$bad_src" -eq 0 ] || { echo "MISSING: ${bad_src} 条 finding 的 source 不属三通道(deterministic/llm-advisory/llm-triage)"; missing=$((missing+1)); }

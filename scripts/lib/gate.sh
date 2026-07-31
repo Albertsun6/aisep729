@@ -29,11 +29,35 @@ gate_repo_root() {
 }
 
 # 提取"决定："的值；无门禁块→UNKNOWN，待填→PENDING
+#
+# ⚠️ 本函数是**整套门禁的信任根**——所有串锁都读它。曾有一个 critical 缺陷：
+#   旧实现是 `grep '^- 决定：' | head -1`（**全文首匹配胜**），而门禁块契约是
+#   「制品**尾部**四行」。于是执行者只要在正文任意早处写一行 `- 决定：go`，
+#   尾部块保持 `<待填>`，探针即判 PASS、下游打印 `GATE0: go ✓` ——
+#   **人翻到文末只看到"待批"，机器却认为已批准**。
+#   实测复现：正文第 3 行插入 `- 决定：go`，尾部四行全 `<待填>` → `门禁⓪=决定：go`。
+#   这同时击穿 C1（串锁）与 C14（执行者不得自批），且**自批在人的视野里不可见**。
+#
+# 现在的规则（两条，都 fail-closed）：
+#   ① 只认**从文件尾部向上**锚定到的门禁块（`门禁… 记录` 之后的那一段）
+#   ② 全文出现 >1 条 `^- 决定：` 一律判 UNKNOWN —— **歧义即拒绝**，不猜哪条是真的
 gate_decision() {
-  local f="${1:-}" line val
+  local f="${1:-}" line val n
   [ -f "$f" ] || { printf 'UNKNOWN\n'; return 0; }
-  line=$(grep -E '^- 决定：' "$f" | head -1) || true
-  [ -z "$line" ] && { printf 'UNKNOWN\n'; return 0; }
+
+  # ② 歧义即 fail-closed：多条决定行无法判断哪条权威
+  n=$(grep -cE '^- 决定：' "$f" 2>/dev/null || true); : "${n:=0}"
+  [ "$n" -gt 1 ] && { printf 'UNKNOWN\n'; return 0; }
+  [ "$n" -eq 0 ] && { printf 'UNKNOWN\n'; return 0; }
+
+  # ① 该唯一一条必须落在**门禁记录块之后**（尾部锚定），否则不认
+  local dec_ln blk_ln
+  dec_ln=$(grep -nE '^- 决定：' "$f" | head -1 | cut -d: -f1)
+  blk_ln=$(grep -nE '门禁.{0,3}记录' "$f" | tail -1 | cut -d: -f1)
+  [ -n "$blk_ln" ] || { printf 'UNKNOWN\n'; return 0; }
+  [ "$dec_ln" -gt "$blk_ln" ] || { printf 'UNKNOWN\n'; return 0; }
+
+  line=$(grep -E '^- 决定：' "$f" | head -1)
   val=$(printf '%s' "$line" | sed -E 's/^- 决定：[[:space:]]*//; s/[[:space:]]*(<!--.*)?$//')
   case "$val" in
     '<待填>'|'') printf 'PENDING\n' ;;
