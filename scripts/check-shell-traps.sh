@@ -27,13 +27,17 @@ echo "== bash 高危写法扫描 =="
 #   ② **不得用 grep -P**：macOS 自带 BSD grep 不支持 PCRE，会报 "invalid option -- P"，
 #      配上 2>/dev/null || true 就变成"永远 PASS"——最危险的失败模式。改用 BSD/GNU 通吃的 ERE。
 #      LC_ALL=C 让 [^ -~] 按字节匹配，从而命中中文（UTF-8 每字节 >0x7F）。
+# 排除 vendored / 第三方目录：本探针查的是**我们自己**的编码约定，
+# 扫别人的代码既改不了也不该拦（risk-tiers 的计数排除里已有 vendor/ dist/ 同理）。
+# 注意：只排除目录，不排除任何我们自己的 .sh —— 用负样本双向验证过。
+EXCL=(--exclude-dir=node_modules --exclude-dir=.git --exclude-dir=vendor --exclude-dir=dist)
 scan() {  # scan <ERE 模式>
   if [ -f "$target" ]; then LC_ALL=C grep -nE "$1" "$target" 2>/dev/null || true
-  else LC_ALL=C grep -rnE "$1" --include="*.sh" "$target" 2>/dev/null || true; fi
+  else LC_ALL=C grep -rnE "$1" --include="*.sh" "${EXCL[@]}" "$target" 2>/dev/null || true; fi
 }
 scan_fixed() {  # 固定串版本（陷阱2 用）
   if [ -f "$target" ]; then grep -n "$1" "$target" 2>/dev/null || true
-  else grep -rn "$1" --include="*.sh" "$target" 2>/dev/null || true; fi
+  else grep -rn "$1" --include="*.sh" "${EXCL[@]}" "$target" 2>/dev/null || true; fi
 }
 
 # 自检：确认扫描引擎真的能工作（防"探针静默失效"复发，宪法 C13）
