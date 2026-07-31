@@ -13,7 +13,7 @@ jobs:
   probes:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5（C15：第三方 Action 必须 SHA-pin，tag 可被移动）
 
       - name: 阶段0 探针（prfaq 结构 + 门禁⓪状态）
         run: bash .claude/skills/e2e-discovery/scripts/check-prfaq.sh specs/platform-pilot/prfaq.md
@@ -44,6 +44,9 @@ jobs:
 
       - name: 实施手册结构（SPEC-24）
         run: bash scripts/check-manual.sh
+
+      - name: 第三方 Action SHA-pin（宪法 C15 —— 该条款声明了探针却一直没有实现）
+        run: bash scripts/check-action-pins.sh
 
       - name: 探针负样本（宪法 C13：探针自身必须能证伪）
         run: bash tests/probe-negative/run.sh

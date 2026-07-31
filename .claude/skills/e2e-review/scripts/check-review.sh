@@ -32,6 +32,13 @@ grep -qE "未审.*：" "$review" || { echo "MISSING: 覆盖声明缺'未审及�
 
 # ---- Findings 表：source 必须是三通道之一 ----
 rows=$(grep -cE "^\| F-[0-9]+ \|" "$review" || true)
+# fail-open 修复：有 ## Findings 章节却一条都抽不到 = 抽取失效（如 finding ID 用了别的前缀），
+# 此时下面所有 findings 相关检查（source 合法性、block 闭环、通道契约）**全部不会执行**，
+# 探针却照样打印 PASS。实测踩过：用 P-N 前缀写了 12 条 finding，探针报「finding 0 条」并 PASS。
+if grep -qE '^#+ .*Findings' "$review" && [ "$rows" -eq 0 ]; then
+  echo "MISSING: 有 Findings 章节但抽到 0 条 —— 判为抽取失效（finding 行须为 \`| F-N | ... |\`）"
+  missing=$((missing+1))
+fi
 if [ "$rows" -gt 0 ]; then
   bad_src=$(grep -E "^\| F-[0-9]+ \|" "$review" | grep -cvE "deterministic|llm-advisory|llm-triage" || true)
   [ "$bad_src" -eq 0 ] || { echo "MISSING: ${bad_src} 条 finding 的 source 不属三通道(deterministic/llm-advisory/llm-triage)"; missing=$((missing+1)); }
@@ -71,7 +78,21 @@ if [ "$mode" = "--final" ]; then
   stripped=$(sed 's/`[^`]*`//g' "$review")
   echo "$stripped" | grep -qE "<待跑>|<N>|<清单>" && { echo "MISSING(final): 存在未决占位符"; missing=$((missing+1)); }
   # block 级未闭环不得过门禁
-  open_block=$(grep -E "^\| F-[0-9]+ \|" "$review" | grep "block" | grep -cE "\| open \||\| reopened \|" || true)
+  #
+  # 按**列**解析，不做整行子串匹配 —— 与上面三通道契约检查同一处教训。
+  # 实测踩过：一条 severity=major / 状态=open 的 finding，因为问题描述里引用了
+  # 代码片段 `blocks>0 → exit 1`，被整行 grep "block" 命中，误判为"未闭环的 block"。
+  # 表列约定：$2=ID $3=severity ... 倒数第二列=状态。
+  # 状态列的位置在不同表里不同（通道① 9 列 / 通道③ 8 列），固定索引不可靠。
+  # 改为：severity 列判 block，再在**任一字段**里找**精确等于**状态机词的值。
+  # 精确匹配避免了子串误报（描述里的 `blocks>0` 不会等于 "open"）。
+  open_block=$(awk -F'|' '
+    function trim(x){ gsub(/^[ \t*`]+|[ \t*`]+$/, "", x); return x }
+    /^\| F-[0-9]+ \|/ {
+      if (trim($3) !~ /block/) next
+      for (i = 4; i <= NF; i++) { v = trim($i); if (v == "open" || v == "reopened") { n++; break } }
+    }
+    END { print n+0 }' "$review")
   [ "$open_block" -eq 0 ] || { echo "MISSING(final): ${open_block} 条 block 级 finding 未闭环——不得过门禁③"; missing=$((missing+1)); }
   # 高风险档必须有异构评审段（或显式 unavailable 留痕）
   if grep -qE "风险档.*高" "$review"; then

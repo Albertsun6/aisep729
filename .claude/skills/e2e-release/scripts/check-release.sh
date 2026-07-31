@@ -25,14 +25,40 @@ sec_lines() { art_sec_lines "$1" "$2"; }
 
 # ---- 门禁③ 路径A：远程服务端事件 ----
 # reviewer finding #2 修复：rollup 为空**不得判绿**——区分"查询失败"（落降级）与"零 checks"（拒绝）
+# E2E_PR 白名单校验 —— 曾有一个 critical 参数注入：
+#   `gh pr view ${E2E_PR:-}` **未加引号**，bash 词分割使
+#   `E2E_PR="--repo cli/cli 6000"` 展开成 `gh pr view --repo cli/cli 6000 --json state`，
+#   gh 接受注入的 `--repo` 去查了**另一个仓**。填一个任意公开仓里 MERGED+全绿的 PR 号，
+#   门禁③ 就用**别人仓的证据**开门。（实测：bash 下分成 3 个参数）
+#   这与 ops/check-branch-protection.sh 已修过的"读 A 仓却操作 B 仓"是同一类。
+# 现在：只接受纯数字 PR 号或本仓 PR URL；且显式 --repo 钉死当前仓。
+_e2e_pr_arg() {
+  local v="${E2E_PR:-}"
+  [ -n "$v" ] || return 0                       # 未指定 → 让 gh 用当前分支的 PR
+  case "$v" in
+    ''|*[!0-9]*)
+      # 允许完整 URL 形式，但必须是**本仓**的
+      local own; own=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true)
+      case "$v" in
+        "https://github.com/${own}/pull/"[0-9]*) printf '%s' "$v"; return 0 ;;
+      esac
+      echo "FAIL(64): E2E_PR 非法（只接受纯数字 PR 号或本仓 PR URL）：${v}" >&2
+      exit 64 ;;
+    *) printf '%s' "$v" ;;
+  esac
+}
+
 gate3_remote() {
   command -v gh >/dev/null 2>&1 || return 1
-  local st rollup rc
-  st=$(gh pr view ${E2E_PR:-} --json state --jq '.state' 2>/dev/null) || return 1
+  local st rollup rc pr repo
+  pr=$(_e2e_pr_arg)
+  repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true)
+  [ -n "$repo" ] || return 1
+  st=$(gh pr view ${pr:+"$pr"} --repo "$repo" --json state --jq '.state' 2>/dev/null) || return 1
   [ -n "${st}" ] || return 1
   [ "$st" = "MERGED" ] || { echo "FAIL(64): 门禁③ 未过——PR 状态=${st}（需 MERGED）"; exit 64; }
 
-  rollup=$(gh pr view ${E2E_PR:-} --json statusCheckRollup \
+  rollup=$(gh pr view ${pr:+"$pr"} --repo "$repo" --json statusCheckRollup \
     --jq '[.statusCheckRollup[]?|(.conclusion // .state // "")]|join(",")' 2>/dev/null); rc=$?
   # 查询本身失败 → 事实取不到，回落降级路径（不是判绿）
   [ $rc -eq 0 ] || return 1

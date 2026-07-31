@@ -104,6 +104,7 @@ cmd_init() {
   copy_one  "scripts/check-structure.sh"   || true
   copy_one  "scripts/check-skill-deps.sh"  || true
   copy_one  "scripts/check-clause-refs.sh" || true
+  copy_one  "scripts/check-action-pins.sh" || true
   copy_one  "ops/check-branch-protection.sh" || true
   copy_one  "scripts/check-selfcontained.sh" || true
   copy_one  "scripts/ratchet.sh"           || true
@@ -575,7 +576,7 @@ jobs:
   process-gates:
     runs-on: macos-latest   # ADR-007：仅 macOS 实测，CI 显式钉住避免 BSD/GNU 差异
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5（C15：SHA-pin，tag 可被移动）
       - name: 阶段0 探针（prfaq 结构）
         run: bash .claude/skills/e2e-discovery/scripts/check-prfaq.sh "specs/$FEATURE/prfaq.md"
       - name: 阶段1 探针（PRD 结构 + 门禁⓪串锁）
@@ -588,7 +589,7 @@ jobs:
   structure-gates:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5（C15：SHA-pin，tag 可被移动）
       - name: 结构自审（六件套 / manifest 驱动 / 宪法 C4）
         run: bash scripts/check-structure.sh
       - name: bash 高危写法（macOS BSD 陷阱）
@@ -597,11 +598,13 @@ jobs:
         run: bash scripts/check-skill-deps.sh
       - name: 宪法条款引用（防条款层 fail-open）
         run: bash scripts/check-clause-refs.sh
+      - name: 第三方 Action SHA-pin（C15）
+        run: bash scripts/check-action-pins.sh
 
   probe-negatives:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5（C15：SHA-pin，tag 可被移动）
       - name: 探针负样本（宪法 C13：探针自身必须能证伪）
         run: bash tests/probe-negative/run.sh
 EOF
