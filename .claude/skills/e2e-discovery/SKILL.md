@@ -10,7 +10,7 @@ description: >-
 # e2e-discovery — 阶段0：战略/立项
 
 > SOP 权威定义：`docs/process/stages/stage-0-discovery.md`（本 skill 是其可执行形态，两者冲突以定义文档为准并修此文件）
-> 制品模板：`templates/prfaq-template.md` ｜ 验收探针：`scripts/check-prfaq.sh`
+> 制品模板：`.claude/skills/e2e-discovery/templates/prfaq-template.md` ｜ 验收探针：`.claude/skills/e2e-discovery/scripts/check-prfaq.sh`
 
 ## 硬约束（先读）
 
@@ -44,10 +44,10 @@ description: >-
 
 ### 第 3 步：生成 prfaq.md
 
-- 按 `templates/prfaq-template.md` 填写，落盘 `specs/<feature>/prfaq.md`（feature 名 kebab-case）
+- 按 `.claude/skills/e2e-discovery/templates/prfaq-template.md` 填写，落盘 `specs/<feature>/prfaq.md`（feature 名 kebab-case）
 - **一页纸纪律**：正文 ≤120 行；FAQ 只预答最尖锐的 3-5 问
 - 大 feature 才另写 `discovery-notes.md`（访谈记录/现有方案扫描/知识缺口）
-- 跑探针自检：`bash <skill目录>/scripts/check-prfaq.sh specs/<feature>/prfaq.md`——结构不齐不许交付
+- 跑探针自检：`bash .claude/skills/e2e-discovery/scripts/check-prfaq.sh specs/<feature>/prfaq.md`——结构不齐不许交付
 
 ### 第 4 步：停在门禁⓪（下注桌）
 

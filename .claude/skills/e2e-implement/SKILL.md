@@ -10,7 +10,7 @@ description: >-
 # e2e-implement — 阶段3：构建与交付
 
 > SOP 权威定义：`docs/process/stages/stage-3-implement.md`（冲突以定义文档为准并回修本文件）
-> 模板：`templates/tasks-template.md` ｜ 探针：`scripts/check-tasks.sh`
+> 模板：`.claude/skills/e2e-implement/templates/tasks-template.md` ｜ 探针：`.claude/skills/e2e-implement/scripts/check-tasks.sh`
 
 ## 硬约束（先读）
 
@@ -23,16 +23,16 @@ description: >-
 ## 流程（四步）
 
 ### 第 0 步：门禁校验
-`bash scripts/check-tasks.sh specs/<feature>/ --gate-only`（校验门禁②）。不过即停。
+`bash .claude/skills/e2e-implement/scripts/check-tasks.sh specs/<feature>/ --gate-only`（校验门禁②）。不过即停。
 
 ### 第 1 步：产 tasks.md
-按 `templates/tasks-template.md`，任务分三组：
+按 `.claude/skills/e2e-implement/templates/tasks-template.md`，任务分三组：
 - **A 组 spike**（时间盒，出结论）
 - **B 组 纵向骨架**（端到端最小可用链路）
 - **C 组 增量**（骨架之上的功能/加固）
 
 每条格式：`- [ ] T-N <描述> ｜ SPEC-x ｜ 预算 Xh ｜ 依赖 T-y ｜ 验证：<命令或判据>`
-跑探针 `check-tasks.sh specs/<feature>/` 绿才进下一步。
+跑探针 `bash .claude/skills/e2e-implement/scripts/check-tasks.sh specs/<feature>/` 绿才进下一步。
 
 ### 第 2 步：跑 spike
 逐个执行 A 组，每个必须落**结论**（写进 plan 风险表对应行 或 新 ADR）。结论触发设计调整时，回阶段2 修订（记录一次 modify），不许带着未决 spike 往下做。
@@ -44,7 +44,7 @@ description: >-
 - 每完成一组报告一次进度与耗时（对照预算）
 
 ### 第 4 步：出口自检
-`bash scripts/check-tasks.sh specs/<feature>/ --final`：全任务已勾选、无未决 spike、无占位符 → 绿则交阶段4（e2e-review + PR），并向用户报告本阶段耗时与是否触发砍线。
+`bash .claude/skills/e2e-implement/scripts/check-tasks.sh specs/<feature>/ --final`：全任务已勾选、无未决 spike、无占位符 → 绿则交阶段4（e2e-review + PR），并向用户报告本阶段耗时与是否触发砍线。
 
 ## 自检清单
 

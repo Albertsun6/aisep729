@@ -11,7 +11,7 @@ description: >-
 # e2e-retire — 阶段6：退役
 
 > SOP 权威定义：`docs/process/stages/stage-6-retire.md`（冲突以定义文档为准并回修本文件）
-> 模板：`templates/deprecation-template.md` ｜ 探针：`scripts/check-retire.sh` ｜ 契约：SPEC-23
+> 模板：`.claude/skills/e2e-retire/templates/deprecation-template.md` ｜ 探针：`.claude/skills/e2e-retire/scripts/check-retire.sh` ｜ 契约：SPEC-23
 
 ## 硬约束（先读）
 
@@ -37,7 +37,7 @@ bash .claude/skills/e2e-retire/scripts/check-retire.sh specs/<feature>/ --gate-o
 不过即停并指路（回阶段5 把门禁④走完）。
 
 ### 第 1 步：定类型与 owner
-按 `templates/deprecation-template.md` 建 `specs/<feature>/deprecation.md`。
+按 `.claude/skills/e2e-retire/templates/deprecation-template.md` 建 `specs/<feature>/deprecation.md`。
 写死：`- 类型：advisory | compulsory`、退役理由、**owner 与资金**（Google 的一手教训：没有 owner 与预算的 deprecation 必然烂尾）。
 选 compulsory 就同时写迁移工具路径与强制截止日。
 

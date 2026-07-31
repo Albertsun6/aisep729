@@ -1,0 +1,24 @@
+# CODEOWNERS — 高风险路径的责任人声明（docs/process/risk-tiers.md §执行层）
+#
+# 重要：本文件**本身不产生强制力**。它只决定"自动请谁来审"。
+# 要让它硬拦，必须同时满足（ADR-014）：
+#   ① 分支保护 require_code_owner_reviews = true
+#   ② enforce_admins = true（否则 admin 直推绕过一切）
+#   ③ 仓库人数 ≥2（单人仓里 owner 即作者，GitHub 不允许自批 → PR 永久阻塞）
+# 试点为单人仓，故 ① 保持 false；本文件先行落位，扩员当天即可生效。
+
+# ---- 默认（中档）----
+*                               @Albertsun6
+
+# ---- 高风险：改的是规则本身或门禁本身 ----
+/docs/constitution.md           @Albertsun6
+/docs/process/risk-tiers.md     @Albertsun6
+/docs/process/skills-manifest.md @Albertsun6
+/docs/architecture/adr/         @Albertsun6
+/quality-baseline.txt           @Albertsun6
+
+# ---- 高风险：执行边界与权限 ----
+/.github/workflows/             @Albertsun6
+/.github/CODEOWNERS             @Albertsun6
+/.claude/settings.json          @Albertsun6
+/scripts/lib/                   @Albertsun6

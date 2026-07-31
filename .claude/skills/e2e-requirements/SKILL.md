@@ -9,7 +9,7 @@ description: >-
 # e2e-requirements — 阶段1：产品发现/需求
 
 > SOP 权威定义：`docs/process/stages/stage-1-requirements.md`（冲突以定义文档为准并回修本文件）
-> 制品模板：`templates/prd-template.md` ｜ 验收探针：`scripts/check-prd.sh`
+> 制品模板：`.claude/skills/e2e-requirements/templates/prd-template.md` ｜ 验收探针：`.claude/skills/e2e-requirements/scripts/check-prd.sh`
 
 ## 硬约束（先读）
 
@@ -22,7 +22,7 @@ description: >-
 ## 流程（六步）
 
 ### 第 0 步：门禁校验
-`bash scripts/check-prd.sh specs/<feature>/ --gate-only` 或直接 grep prfaq 的 `决定：go`。不过即停。
+`bash .claude/skills/e2e-requirements/scripts/check-prd.sh specs/<feature>/ --gate-only` 或直接 grep prfaq 的 `决定：go`。不过即停。
 
 ### 第 1 步：输入盘点
 读 prfaq（假设陈述/判据/no-gos/知识缺口）+ 既有 stories/访谈记录。列出：已答字段（只需确认）vs 空白字段（必须问）。
@@ -43,7 +43,7 @@ description: >-
 ### 第 5 步：NFR + 追溯 + 探针
 - 非功能需求逐条可验证（环境/性能/安全/合规/可维护）
 - 追溯表：每条 Story ↔ prfaq 痛点/假设；孤儿需求（无追溯）→ 删或补立项理由
-- `bash scripts/check-prd.sh specs/<feature>/` 探针绿才许交付
+- `bash .claude/skills/e2e-requirements/scripts/check-prd.sh specs/<feature>/` 探针绿才许交付
 - 待澄清项：能问就单点澄清（一次一问，spec-kit clarify 式）；确实定不了的**显式移交**并标注移交对象
 
 ### 第 6 步：停在门禁①

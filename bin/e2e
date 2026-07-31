@@ -98,17 +98,25 @@ cmd_init() {
   copy_tree ".claude/hooks"   || true
   copy_one  "scripts/check-shell-traps.sh" || true
   copy_one  "scripts/check-structure.sh"   || true
+  copy_one  "scripts/check-skill-deps.sh"  || true
+  copy_one  "scripts/check-clause-refs.sh" || true
+  copy_one  "ops/check-branch-protection.sh" || true
   copy_one  "scripts/check-selfcontained.sh" || true
   copy_one  "scripts/ratchet.sh"           || true
   copy_one  "tests/probe-negative/run.sh"  || true
   copy_one  "tests/probe-negative/ratchet-negative.sh" || true
   copy_one  "docs/process/skills-manifest.md" || true
+  # risk-tiers 是 e2e-review 第 1 步定档的唯一数据源。漏发它 = 定档静默跳过
+  # = 一切按低风险处理 = 不跑 LLM/异构评审 —— fail-open。由 check-skill-deps.sh 守住
+  copy_one  "docs/process/risk-tiers.md"   || true
   copy_tree "docs/process/stages"          || true
 
   # 生成项目侧文件
   gen_file "AGENTS.md"        "$(tpl_agents)"
   gen_file "CLAUDE.md"        "$(tpl_claude_md)"
-  gen_file "docs/constitution.md" "$(tpl_constitution)"
+  # 宪法必须发完整版：skill / agent 大量引用 C6-C15，只发 C1-C5 残桩会让
+  # agent "读 C14"时读到一个没有 C14 的文件，然后静默按无约束继续（评审实证）。
+  copy_one "docs/constitution.md" || gen_file "docs/constitution.md" "$(tpl_constitution)"
   gen_file "docs/glossary.md" "$(tpl_glossary)"
   gen_file "docs/architecture/spine.md" "$(tpl_spine)"
   gen_file ".github/workflows/quality-gates.yml" "$(tpl_ci)"
@@ -132,6 +140,14 @@ copy_one()  { [ -f "$E2E_HOME/$1" ] || return 1
   mkdir -p "$(dirname "$target/$1")"; cp "$E2E_HOME/$1" "$target/$1"; created=$((created+1)); printf '  + %s\n' "$1"; }
 gen_file()  {
   if [ -f "$target/$1" ]; then printf '  = %s（已存在，跳过）\n' "$1"; conflicts=$((conflicts+1)); return 0; fi
+  # 空内容必须响亮失败（实测教训）：tpl_ci / tpl_spine 曾**从未定义**，
+  # `$(tpl_ci)` 只在 stderr 留一行 command not found，然后静静写出 1 字节空文件——
+  # 业务仓一键接入后拿到的是空 workflow（GitHub 视为无效 = 根本没有 CI）。
+  # 脚手架产出空文件比不产出更危险：目录看起来齐全，门禁其实不存在。
+  if [ -z "${2:-}" ] || [ -z "$(printf '%s' "${2:-}" | tr -d '[:space:]')" ]; then
+    echo "FAIL(66): 模板 $1 渲染为空——拒绝写出空脚手架文件（模板函数缺失或渲染失败）" >&2
+    return 66
+  fi
   mkdir -p "$(dirname "$target/$1")"; printf '%s\n' "$2" > "$target/$1"; created=$((created+1)); printf '  + %s\n' "$1"; }
 
 # ---------- assess（SPEC-12：只读体检，产物出仓外）----------
@@ -308,7 +324,10 @@ cmd_adopt() {
 
   for rel in .claude/skills .claude/agents scripts/lib \
              scripts/check-shell-traps.sh scripts/check-structure.sh scripts/ratchet.sh \
-             docs/process/skills-manifest.md docs/process/stages; do
+             scripts/check-skill-deps.sh scripts/check-clause-refs.sh \
+             ops/check-branch-protection.sh \
+             docs/process/skills-manifest.md docs/process/risk-tiers.md docs/process/stages \
+             docs/constitution.md; do
     _adopt_copy "$rel"
   done
 
@@ -502,6 +521,85 @@ tpl_glossary() { cat <<'EOF'
 ## 阶段 6
 
 （随 e2e-retire 使用补充）
+EOF
+}
+
+tpl_spine() { cat <<'EOF'
+# Architecture Spine（骨架基线）
+
+> ≤300 行纪律：随架构变更 PR 同步更新。这里写**现状**，理想态写进 ADR 的 proposed 决策。
+> 由 `e2e init` 生成初稿，首次架构决策（门禁②）前必须由人补齐。
+
+## 顶层结构
+
+<待填：目录树与各目录职责，一行一项>
+
+## 分层与依赖方向
+
+<待填：允许的依赖方向；被禁止的反向依赖>
+
+## 关键不变量
+
+<待填：不能被违反的约束，每条须可被探针或测试证伪>
+
+## 外部依赖与信任边界
+
+<待填：第三方依赖清单、进出数据的边界、凭据存放位置>
+
+## 已知债务
+
+<待填：明知不合理但本轮不动的地方 + 复议条件>
+EOF
+}
+
+tpl_ci() { cat <<'EOF'
+name: quality-gates
+
+# ⚠️ required status check 对应 **job**（check-run）而非 step。
+# 若把所有检查塞进一个 job 的多个 step，分支保护里只能勾到一个名字，
+# 单个 step 失败的可见性也会丢失。故按关注点拆成独立 job。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  # 改成你的 feature 目录名（specs/<FEATURE>/）
+  FEATURE: <feature>
+
+jobs:
+  process-gates:
+    runs-on: macos-latest   # ADR-007：仅 macOS 实测，CI 显式钉住避免 BSD/GNU 差异
+    steps:
+      - uses: actions/checkout@v4
+      - name: 阶段0 探针（prfaq 结构）
+        run: bash .claude/skills/e2e-discovery/scripts/check-prfaq.sh "specs/$FEATURE/prfaq.md"
+      - name: 阶段1 探针（PRD 结构 + 门禁⓪串锁）
+        run: bash .claude/skills/e2e-requirements/scripts/check-prd.sh "specs/$FEATURE/"
+      - name: 阶段2 探针（设计制品 + 宪法/ADR 规则）
+        run: bash .claude/skills/e2e-design/scripts/check-design.sh "specs/$FEATURE/"
+      - name: 阶段3 探针（tasks 逐条验证行）
+        run: bash .claude/skills/e2e-implement/scripts/check-tasks.sh "specs/$FEATURE/"
+
+  structure-gates:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 结构自审（六件套 / manifest 驱动 / 宪法 C4）
+        run: bash scripts/check-structure.sh
+      - name: bash 高危写法（macOS BSD 陷阱）
+        run: bash scripts/check-shell-traps.sh
+      - name: skill 依赖存在性（防脚手架缺口导致静默跳过检查）
+        run: bash scripts/check-skill-deps.sh
+      - name: 宪法条款引用（防条款层 fail-open）
+        run: bash scripts/check-clause-refs.sh
+
+  probe-negatives:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 探针负样本（宪法 C13：探针自身必须能证伪）
+        run: bash tests/probe-negative/run.sh
 EOF
 }
 

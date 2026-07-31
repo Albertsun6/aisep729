@@ -36,6 +36,12 @@ jobs:
       - name: 平台自审 · bash 高危写法（M1 期间同一 bug 犯三次的教训）
         run: bash scripts/check-shell-traps.sh
 
+      - name: 平台自审 · skill 依赖存在性（防脚手架缺口导致静默跳过检查）
+        run: bash scripts/check-skill-deps.sh
+
+      - name: 平台自审 · 宪法条款引用（防条款层 fail-open）
+        run: bash scripts/check-clause-refs.sh
+
       - name: 探针负样本（宪法 C13：探针自身必须能证伪）
         run: bash tests/probe-negative/run.sh
 

@@ -11,8 +11,8 @@ description: >-
 # e2e-release — 阶段5：发布与运营
 
 > SOP 权威定义：`docs/process/stages/stage-5-release.md`（冲突以定义文档为准并回修本文件）
-> 模板：`templates/release-template.md`（PRR 核对记录 + runbook 骨架，一份模板两个落点）
-> 探针：`scripts/check-release.sh` ｜ 契约：SPEC-22 ｜ 门禁载体分级：ADR-009 · ADR-013
+> 模板：`.claude/skills/e2e-release/templates/release-template.md`（PRR 核对记录 + runbook 骨架，一份模板两个落点）
+> 探针：`.claude/skills/e2e-release/scripts/check-release.sh` ｜ 契约：SPEC-22 ｜ 门禁载体分级：ADR-009 · ADR-013
 
 ## 硬约束（先读）
 
@@ -38,7 +38,7 @@ bash .claude/skills/e2e-release/scripts/check-release.sh specs/<feature>/ --gate
 - 把实际走的是哪条路径、拿到的证据（PR 状态 / checks 汇总 / merge sha / 测试命令）**如实抄进** release.md 的「门禁③ 入口证据」表
 
 ### 第 1 步：PRR 核对（生产就绪评审）
-按 `templates/release-template.md` 建 `specs/<feature>/release.md`，逐项过五类核对项：容量与依赖 / 可观测 / 失败与回滚 / 安全与合规 / 运维交接。
+按 `.claude/skills/e2e-release/templates/release-template.md` 建 `specs/<feature>/release.md`，逐项过五类核对项：容量与依赖 / 可观测 / 失败与回滚 / 安全与合规 / 运维交接。
 每项格式：`- [ ] PRR-N <核对项> ｜ 证据：<命令输出或链接> ｜ 核对人：<人名>`
 **核对不了的项不许勾**——写进「未决风险与例外」并由人类签署到期日。
 

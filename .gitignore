@@ -1,11 +1,7 @@
-# 系统
-.DS_Store
-
-# 可再生成的大二进制产物（调研音频，由 /survey generate-audio.sh 重出）
-*.m4a
-
-# 个人本地覆盖（团队共享的是 settings.json）
+# 本地权限覆盖：可能放宽 allow 规则，绝不入库（security 评审：settings.local 未被忽略）
 .claude/settings.local.json
-
-# 体检输出（e2e assess 默认写仓外，此处兜底）
-e2e-assess-*/
+# macOS
+.DS_Store
+# 探针/评审的临时产物
+/tmp-*
+*.log

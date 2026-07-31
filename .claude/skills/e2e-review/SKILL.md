@@ -10,8 +10,8 @@ description: >-
 # e2e-review — 阶段4：评审与合并门禁
 
 > SOP 权威定义：`docs/process/stages/stage-4-review.md`｜风险路由：`docs/process/risk-tiers.md`
-> 模板：`templates/review-template.md`｜探针：`scripts/check-review.sh`
-> 设计依据：`docs/research/AI时代评审门禁-调研.md`（v2，异构终审 Dissent 13 条修订后）
+> 模板：`.claude/skills/e2e-review/templates/review-template.md`｜探针：`.claude/skills/e2e-review/scripts/check-review.sh`
+> 设计依据（**平台仓 provenance，不随脚手架分发**）：`docs/research/AI时代评审门禁-调研.md`（v2，异构终审 Dissent 13 条修订后） <!-- skill-deps:platform-only -->
 
 ## 硬约束（先读，这几条是血的教训）
 
@@ -28,7 +28,7 @@ description: >-
 ## 流程（六步）
 
 ### 第 0 步：入口校验
-`bash scripts/check-review.sh specs/<feature>/ --gate-only`——校验阶段3 出口（tasks 全勾选 + `check-tasks.sh --final` 绿）。不过即停。
+`bash .claude/skills/e2e-review/scripts/check-review.sh specs/<feature>/ --gate-only`——校验阶段3 出口（tasks 全勾选 + `check-tasks.sh --final` 绿）。不过即停。
 
 ### 第 1 步：定档（读 risk-tiers.md）
 按改动文件路径匹配 glob，取**命中的最高档**；再检查动态升档触发（打回≥2次 / security block / 规模>400行或>15文件 / 新增依赖 / 删测试）。输出定档结论与依据。
@@ -52,7 +52,7 @@ agent 输出的 finding 标 `source=llm-advisory`；对通道① 告警的分诊
 - **安全 critical 禁止 accepted-risk**
 
 ### 第 5 步：探针 + 停门禁③
-`bash scripts/check-review.sh specs/<feature>/ --final` 绿后，输出摘要请人裁决：
+`bash .claude/skills/e2e-review/scripts/check-review.sh specs/<feature>/ --final` 绿后，输出摘要请人裁决：
 - 摘要含：定档结论 / 确定性 blocker 状态 / LLM finding 数（advisory）/ **未审清单** / 规模统计
 - **批准** → 门禁③记录（人类署名）→ 告知可进阶段5
 - **打回** → 回第 4 步

@@ -255,6 +255,74 @@ fi
 
 fi
 
+# ---------- check-skill-deps 负样本（门禁③ 评审抓出的四条真空 PASS 路径）----------
+# 背景：这个探针本身是"防 fail-open"的，异构评审 + reviewer + security 三方各自
+# 独立指出它自己有多条"什么都没检查却 exit 0"的路径。以下用例把每条钉死。
+echo "-- check-skill-deps.sh --"
+SD="$ROOT/scripts/check-skill-deps.sh"
+
+SDW="$WORK/sd-no-skills"; mkdir -p "$SDW"
+expect "SD/66 连 .claude/skills 都没有（旧版静默 exit 0）" 66 bash "$SD" "$SDW"
+
+SDW2="$WORK/sd-empty"; mkdir -p "$SDW2/.claude/skills"
+expect "SD/66 skills 目录为空（旧版'已检查 0 条 / PASS'）" 66 bash "$SD" "$SDW2"
+
+SDW3="$WORK/sd-noskillmd"; mkdir -p "$SDW3/.claude/skills/foo"
+printf 'not a skill\n' > "$SDW3/.claude/skills/foo/README.md"
+expect "SD/66 有目录但无 SKILL.md" 66 bash "$SD" "$SDW3"
+
+SDW4="$WORK/sd-zeroref"; mkdir -p "$SDW4/.claude/skills/bar"
+printf -- '---\nname: bar\n---\n本 skill 正文不含任何路径引用。\n' > "$SDW4/.claude/skills/bar/SKILL.md"
+expect "SD/66 SKILL.md 抽出 0 条引用＝抽取失效，不是'无依赖'" 66 bash "$SD" "$SDW4"
+
+# 命令形式的引用必须被抽到（旧正则要求"整个反引号内容就是一条路径"，抽不到 → 假绿）
+SDW5="$WORK/sd-cmdref"; mkdir -p "$SDW5/.claude/skills/baz"
+printf -- '---\nname: baz\n---\n跑 `bash docs/process/NOT-EXIST.md` 与 scripts/lib/ghost.sh\n' \
+  > "$SDW5/.claude/skills/baz/SKILL.md"
+expect "SD/1 命令内引用的缺失依赖必须被抓到" 1 bash "$SD" "$SDW5"
+
+# 中文文件名不得被截断误报（白名单字符类版本会把 `docs/x/AI时代-调研.md` 截成 `docs/x/AI`）
+SDW6="$WORK/sd-cjk"; mkdir -p "$SDW6/.claude/skills/qux" "$SDW6/docs/research"
+printf 'x\n' > "$SDW6/docs/research/AI时代评审门禁-调研.md"
+printf -- '---\nname: qux\n---\n依据：`docs/research/AI时代评审门禁-调研.md`\n' \
+  > "$SDW6/.claude/skills/qux/SKILL.md"
+expect "SD/0 中文文件名不误报（正样本回归）" 0 bash "$SD" "$SDW6"
+
+# ---------- check-clause-refs 负样本（条款层 fail-open）----------
+echo "-- check-clause-refs.sh --"
+CR="$ROOT/scripts/check-clause-refs.sh"
+
+CRW="$WORK/cr-noconst"; mkdir -p "$CRW"
+expect "CR/66 无宪法文件（不得跳过）" 66 bash "$CR" "$CRW"
+
+CRW2="$WORK/cr-dangling"; mkdir -p "$CRW2/docs" "$CRW2/.claude"
+printf '# 宪法\n\n- **C1 x**。检查：y。\n- **C2 z**。检查：w。\n' > "$CRW2/docs/constitution.md"
+printf '按宪法 C14 检查批准归因；另见 C12（异构评审）。\n' > "$CRW2/.claude/agent.md"
+expect "CR/1 引用了未定义的 C12/C14（agent 会静默无约束继续）" 1 bash "$CR" "$CRW2"
+
+CRW3="$WORK/cr-badfmt"; mkdir -p "$CRW3/docs"
+printf '# 宪法\n\n条款格式变了，抽不出定义。\n' > "$CRW3/docs/constitution.md"
+expect "CR/66 抽出 0 条定义＝抽取失效，不是'宪法为空'" 66 bash "$CR" "$CRW3"
+
+# ---------- check-branch-protection 负样本（不触网的可测部分）----------
+# 这个探针必须真推远端才能出行为证明，故 PR 触发的 CI 不跑它（会写远端）。
+# 但它的**前置自检与降级路径**必须可证伪，且必须证明"不存在静默 exit 0"。
+echo "-- ops/check-branch-protection.sh --"
+BP="$ROOT/ops/check-branch-protection.sh"
+
+BPW="$WORK/bp-notgit"; mkdir -p "$BPW"
+( cd "$BPW" && bash "$BP" >/dev/null 2>&1 ); rc=$?
+total=$((total+1))
+if [ "$rc" = 66 ]; then echo "  ✅ BP/66 不在 git 工作区（自检失败，非静默）"
+else echo "  ❌ BP/66 不在 git 工作区（期望 66，实际 ${rc}）"; fails=$((fails+1)); fi
+
+# 关键性质：无论走哪条降级路径，**都不得 exit 0**（exit 0 只允许来自真实行为证明）
+BPW2="$WORK/bp-nogh"; mkdir -p "$BPW2"
+( cd "$BPW2" && PATH=/usr/bin:/bin bash "$BP" >/dev/null 2>&1 ); rc=$?
+total=$((total+1))
+if [ "$rc" != 0 ]; then echo "  ✅ BP/非0 gh 不可用时不得静默通过（实际 ${rc}）"
+else echo "  ❌ BP 在 gh 不可用时 exit 0 —— 静默通过"; fails=$((fails+1)); fi
+
 # ---------- ratchet 负样本（S5，独立脚本）----------
 echo "-- ratchet.sh --"
 expect "ratchet 六用例（含替换违规总数不变）" 0 bash "$ROOT/tests/probe-negative/ratchet-negative.sh"

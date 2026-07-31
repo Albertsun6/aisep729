@@ -57,10 +57,28 @@ fi
 # sed -i 无备份参数在 BSD 上语法不同（仅 WARN）
 # 排除本脚本自身（其注释与提示串含被检模式，会自指误报）与注释行
 t2=$(scan_fixed "sed -i " \
-     | grep -v "sed -i ''" | grep -v "check-shell-traps.sh" | grep -vE ':[0-9]+:[[:space:]]*#' || true)
+     | grep -v "sed -i ''" | grep -v "check-shell-traps.sh" | grep -vE '(^|:)[0-9]+:[[:space:]]*#' || true)
 if [ -n "$t2" ]; then
   echo "⚠️  陷阱2（WARN）：sed -i 无 '' 参数——BSD/GNU 语法分歧点"
   printf '%s\n' "$t2" | sed 's/^/   /'
+fi
+
+# 陷阱3：macOS 上不存在的 GNU coreutils 命令（实测：`timeout` 让一次异构评审静默失败）
+# macOS 基础系统没有 timeout/realpath/sha256sum/gsed 等；它们只在装了 coreutils 后以 g* 前缀存在。
+# 危害与陷阱2 同类：命令不存在 → `command not found` → 若外层吞了退出码就变成"跑过了"。
+# 排除注释行与本脚本自身（其提示串含被检词，会自指误报）。
+# 两类例外：
+#   ① `command -v X` 探测行自身（不排除的话，正确的守卫写法反被判违规）
+#   ② 显式 pragma `# shell-traps:ok <理由>` —— 豁免必须写在代码里、看得见、可审计，
+#      不做"猜上下文"的启发式（猜错会静默放行，正是本探针要防的东西）
+t3=$(scan '(^|[^a-zA-Z0-9_./-])(timeout|realpath|sha256sum|sha1sum|md5sum|readlink -f)[[:space:]]' \
+     | grep -v "check-shell-traps.sh" | grep -vE '(^|:)[0-9]+:[[:space:]]*#' \
+     | grep -v 'command -v' | grep -v 'shell-traps:ok' || true)
+if [ -n "$t3" ]; then
+  echo "❌ 陷阱3：macOS 无此 GNU 命令（timeout/realpath/sha256sum/md5sum/readlink -f）"
+  echo "   替代：timeout→后台跑+轮询或 gtimeout；realpath→cd+pwd；sha256sum→shasum -a 256；md5sum→md5"
+  printf '%s\n' "$t3" | sed 's/^/   /'
+  hits=$((hits + $(printf '%s\n' "$t3" | grep -c .)))
 fi
 
 if [ "$hits" -gt 0 ]; then

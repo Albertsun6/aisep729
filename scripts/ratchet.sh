@@ -33,13 +33,29 @@ run_linter() {
   done < <(find . -name '*.sh' -not -path './.git/*' | sort)
 }
 
+# ---- 内容哈希：启动时选一次工具，而不是靠 `||` 兜底 ----
+# 原写法 `fp=$(printf … | md5 -q | cut -c1-8) || fp=$(… | md5sum | …)` 是坏的：
+# 赋值的退出码取自管道末端的 cut，md5 不存在时 cut 仍退 0 且输出空串，
+# 兜底分支**永远不会触发**，指纹静默变成空 —— 同 rule+file 的违规全部塌缩成一条，
+# ratchet 从此漏报。故改为显式探测 + 探不到就响亮失败（fail-closed，C13）。
+if command -v md5 >/dev/null 2>&1; then        # BSD / macOS
+  _content_hash() { md5 -q | cut -c1-8; }
+elif command -v md5sum >/dev/null 2>&1; then   # GNU / Linux
+  _content_hash() { md5sum | cut -c1-8; }   # shell-traps:ok 已由上一行 command -v 守卫
+elif command -v shasum >/dev/null 2>&1; then
+  _content_hash() { shasum -a 256 | cut -c1-8; }
+else
+  echo "FAIL(66): 找不到可用的哈希工具（md5 / md5sum / shasum），指纹不可信" >&2   # shell-traps:ok 字符串字面量
+  exit 66
+fi
+
 # ---- 身份指纹：工具:规则:文件:内容hash（无行号 → 行号漂移不误报）----
 to_identity() {
   local tool="${RATCHET_TOOL:-selfcheck}"
   while IFS='|' read -r rule file content; do
     [ -z "${rule:-}" ] && continue
-    fp=$(printf '%s' "$content" | md5 -q 2>/dev/null | cut -c1-8) \
-      || fp=$(printf '%s' "$content" | md5sum | cut -c1-8)
+    fp=$(printf '%s' "$content" | _content_hash)
+    [ -n "$fp" ] || { echo "FAIL(66): 内容哈希为空，指纹不可信" >&2; exit 66; }
     printf '%s:%s:%s:%s\n' "$tool" "$rule" "$file" "$fp"
   done | sort -u
 }

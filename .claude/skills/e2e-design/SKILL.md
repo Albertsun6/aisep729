@@ -9,7 +9,7 @@ description: >-
 # e2e-design — 阶段2：定义/设计
 
 > SOP 权威定义：`docs/process/stages/stage-2-design.md`（冲突以定义文档为准并回修本文件）
-> 模板：`templates/{spec,plan,adr}-template.md` ｜ 探针：`scripts/check-design.sh` ｜ 预审：`.claude/agents/architect.md`
+> 模板：`.claude/skills/e2e-design/templates/{spec,plan,adr}-template.md` ｜ 探针：`.claude/skills/e2e-design/scripts/check-design.sh` ｜ 预审：`.claude/agents/architect.md`
 
 ## 硬约束（先读）
 
@@ -23,7 +23,7 @@ description: >-
 ## 流程（七步）
 
 ### 第 0 步：门禁校验
-`bash scripts/check-design.sh specs/<feature>/ --gate-only`。不过即停。
+`bash .claude/skills/e2e-design/scripts/check-design.sh specs/<feature>/ --gate-only`。不过即停。
 
 ### 第 1 步：constitution / spine（平台级，缺则建、有则对照）
 - `docs/constitution.md`：不可妥协工程原则（≤15 条，每条一句+为什么+可执行检查方式）；已存在则只对照不改（改宪法=独立 ADR）
@@ -42,7 +42,7 @@ MADR 精简模板：背景→备选（≥2，各带代价）→决定→后果�
 用 Agent 工具（agentType 或按 `.claude/agents/architect.md` 的 prompt）跑五查（宪法/可验证性/追溯/质量场景覆盖/备选真实性）。**阻断项清零**才进下一步；建议项记入待办或 ADR。
 
 ### 第 6 步：探针 + 异构评审
-- `bash scripts/check-design.sh specs/<feature>/` 绿
+- `bash .claude/skills/e2e-design/scripts/check-design.sh specs/<feature>/` 绿
 - 异构评审（跨模型 lens 审 spec/plan/ADR）：意见逐条 accept/partial/refute 表态留痕（辩论矩阵记入 spec 尾部评审记录块）
 
 ### 第 7 步：停在门禁②
