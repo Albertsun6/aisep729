@@ -144,8 +144,10 @@ gh api -X DELETE repos/<owner>/<repo>/branches/main/protection
 - **升档触发无强制力** —— 规模/依赖超限只有建议力，没有 CI job 计算并阻断
 - **文本门禁台账不是防篡改凭证** —— 本轮修的 critical 只堵了"隐形伪造"，
   **没堵"有写权限的人公开篡改"**。真正解决要把批准移到服务端 review 事件（手册 §7.1b）
-- **`ai-review.yml.template` 让 LLM 对攻击者可控输入有阻断权** —— 仓已公开，fork PR 首次可能。
-  它未启用，**启用前必须先修**
+- ~~`ai-review.yml.template` 的 LLM 阻断权~~ —— **已修 @2026-07-31**：LLM 侧永不影响 CI 成败，
+  只发 PR 评论；`check-ai-review-contract.sh` + 4 条负样本钉死。
+  **顺带更正**：当时说"攻击者可控输入"那一半不成立——`pull_request` 下 fork PR 拿不到 secrets，
+  LLM 根本跑不起来。真陷阱是"job 恒红 → 有人改成 `pull_request_target`"（经典 pwn request）
 - **只有一个人跑过** —— 全部验证来自自建者 + AI 评审，**无真人冷启动验证**。
   正式交付前应找人照手册从零跑一遍
 - **`Bash(bash bin/e2e*)` 是任意目录写入原语** —— `init`/`adopt` 可往任意目录写文件且自动放行

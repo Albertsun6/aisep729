@@ -430,6 +430,29 @@ else
   echo "  ❌ 注入型 E2E_PR 未被拦（参数注入复发）"; fails=$((fails+1))
 fi
 
+# ---------- AI 评审三通道契约（LLM 不得有阻断权）----------
+# 起源：ai-review 模板早期写 `blocks>0 → exit 1`，把阻断权交给了 LLM，
+# 直接违反本平台自己的核心契约。连带效应更麻烦：fork PR 拿不到 secrets → job 红，
+# 踩到的人最可能改成 pull_request_target —— 经典 pwn request。
+echo "-- AI 评审三通道契约 --"
+AIC="$ROOT/scripts/check-ai-review-contract.sh"
+AW="$WORK/aireview"; mkdir -p "$AW/.github/workflows"
+mk_ai() {  # mk_ai <触发器> <run 内容> <是否含 required-check 声明:yes|no>
+  {
+    echo "name: ai-review"; echo "on:"; echo "  $1:"
+    echo "jobs:"; echo "  review:"; echo "    steps:"; echo "      - run: |"; echo "          $2"
+    [ "$3" = yes ] && echo "# 本 job 不能设为 required check"
+  } > "$AW/.github/workflows/ai-review.yml"
+}
+mk_ai pull_request 'echo ok' yes
+expect "AI契约/0 合规模板放行" 0 bash "$AIC" "$AW"
+mk_ai pull_request 'if [ "$blocks" -gt 0 ]; then exit 1; fi' yes
+expect "AI契约/1 LLM 结果决定 CI 成败必须被抓" 1 bash "$AIC" "$AW"
+mk_ai pull_request_target 'echo ok' yes
+expect "AI契约/1 pull_request_target 必须被抓（pwn request）" 1 bash "$AIC" "$AW"
+mk_ai pull_request 'echo ok' no
+expect "AI契约/1 缺「不得设为 required check」声明必须被抓" 1 bash "$AIC" "$AW"
+
 # ---------- 门禁台账：决定值非法必须被抓（fail-open 修复回归）----------
 # 起源：7 个阶段探针里 6 个只用 gate_status **显示**决定值，从不校验它属于契约集合。
 # 门禁④ 被填成"放行"（契约是 批准/打回）后 check-release.sh --final 判 PASS 放行，

@@ -115,7 +115,7 @@ RTO:    本地负样本 4 秒 ｜ CI probes 14–24 秒
 | # | 风险 | 为什么不在本次解决 | 到期日 | 签署人 |
 |---|---|---|---|---|
 | ~~E-1~~ | ~~平台仓无 LICENSE~~ | **已闭环 @2026-07-31**：用户裁决双许可——代码 Apache-2.0（`LICENSE-CODE`）、文档与方法论 CC BY-SA 4.0（`LICENSE-DOCS`），`LICENSE` 写明适用范围与边界判定 | — | yongqian |
-| E-2 | `ai-review.yml.template` 让 LLM 对**攻击者可控输入**（fork PR diff）有阻断权，与本平台自己的三通道契约冲突 | 修它需重设计 AI 评审的输入通道（改为确定性预处理后的结构化摘要）。**它是 `.template` 未启用；启用前必须先修** | 启用前（硬约束） | yongqian |
+| ~~E-2~~ | ~~`ai-review.yml.template` 让 LLM 有阻断权~~ | **已闭环 @2026-07-31**。**并更正当时的威胁模型**：原描述说"攻击者可控输入直接喂给有阻断权的 LLM"，查证后**那一半不成立**——`pull_request` 触发时 fork PR **拿不到 secrets**（GitHub 设计），claude 跑不起来，LLM 根本接触不到 fork 输入。真问题是另一个形状：① LLM 有阻断权本身违反三通道契约；② fork PR 的 required check **恒红**，踩到的人最可能改成 `pull_request_target`——**那才是经典 pwn request**（GitHub 2026-06 已让 actions/checkout v7 默认拒绝该组合）。处置：LLM 侧全部 `continue-on-error`、只发 PR 评论、**永不因 LLM 结果失败**；无 API key 时优雅跳过而非变红；diff 显式定界为数据并要求把疑似注入**当 finding 报**；文件头三条警示；新建 `check-ai-review-contract.sh` + 4 条负样本钉死 | — | yongqian |
 | E-3 | **文本门禁台账防不住有写权限的人**（本轮修的 critical 只是堵了"隐形伪造"，没堵"公开篡改"） | 结构限制。真正解决要把批准移到服务端 review 事件 | 扩员至 ≥2 人时 | yongqian |
 | E-4 | `Bash(bash bin/e2e*)` 是"任意目录写入原语"（`init`/`adopt` 可往任意目录写文件且自动放行） | 收紧会影响正常脚手架工作流，需先确认使用习惯 | 2026-09-30 | yongqian |
 | E-5 | fork 场景下 `gh repo view` 可能解析到 upstream，导致"读 A 仓推 B 仓" | 需人工确认 gh 的 base-repo 解析行为，仓内证不出 | 2026-09-30 | yongqian |

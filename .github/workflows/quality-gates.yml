@@ -48,6 +48,9 @@ jobs:
       - name: 第三方 Action SHA-pin（宪法 C15 —— 该条款声明了探针却一直没有实现）
         run: bash scripts/check-action-pins.sh
 
+      - name: AI 评审三通道契约（LLM 不得有阻断权）
+        run: bash scripts/check-ai-review-contract.sh
+
       - name: 探针负样本（宪法 C13：探针自身必须能证伪）
         run: bash tests/probe-negative/run.sh
 
