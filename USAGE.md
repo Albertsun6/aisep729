@@ -57,7 +57,8 @@
 | `scripts/check-readme.sh` | README 链接/命令有效 + **负样本与探针条数对账** | 0/1/65/66 |
 | `scripts/check-marketplace-sha.sh` | 插件市场钉的 sha 不得落后（**只在 main 跑**，见下） | 0/1/66 |
 | `scripts/check-adopt-parity.sh` | adopt 装出来的能力层必须与 init 一致（**行为证明**） | 0/1/66 |
-| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**97 条**负样本，口径见 README） | 0/1 |
+| `scripts/check-plugin-name.sh` | 文档教的 `claude plugin install` 必须与 marketplace.json 同名（ADR 里的历史命令不阻断） | 0/1/66 |
+| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**106 条**负样本，口径见 README） | 0/1 |
 | `.claude/skills/*/scripts/check-*.sh` | 各阶段制品结构 + 上游门禁串锁 | 0/64/65/66 |
 
 ### `ratchet.sh` 的默认 linter 能力边界（**别当成通用 linter**）

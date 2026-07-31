@@ -68,6 +68,9 @@ jobs:
       - name: README 门面（链接/命令/已知限制）
         run: bash scripts/check-readme.sh
 
+      - name: 插件名一致（文档教的安装命令必须与 marketplace.json 同名）
+        run: bash scripts/check-plugin-name.sh
+
       - name: 探针负样本（宪法 C13：探针自身必须能证伪）
         run: bash tests/probe-negative/run.sh
 

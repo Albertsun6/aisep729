@@ -911,6 +911,52 @@ else
   echo "  ⚠️  跳过：无 check-adopt-parity.sh"
 fi
 
+# ---------- 插件名一致性（更名漂移：读者复制的那行命令装不上）----------
+# 起源：e2e-platform → aisep 更名要同时改 4 个地方，漏一个不报错，
+# 只是读者装不上，而作者本机早装好了永远看不见。
+echo "-- check-plugin-name.sh --"
+PN="$ROOT/scripts/check-plugin-name.sh"
+if [ -f "$PN" ]; then
+  PW="$WORK/pname"; mkdir -p "$PW/.claude-plugin" "$PW/docs/architecture/adr"
+  mk_mf() {  # mk_mf <市场名> <插件名>
+    printf '{"name":"%s","plugins":[{"name":"%s"}]}\n' "$1" "$2" > "$PW/.claude-plugin/marketplace.json"
+  }
+  PNONE="$WORK/pn-none"; mkdir -p "$PNONE"
+  expect "插件名/0 无 marketplace.json 跳过（非分发仓不该被打扰）" 0 bash "$PN" "$PNONE"
+
+  mk_mf mkt plg
+  printf '# 门面\n什么都没教\n' > "$PW/README.md"
+  expect "插件名/66 有 manifest 却无任何安装命令（抽取失效/门面没教，fail-closed）" 66 bash "$PN" "$PW"
+
+  printf '装：`claude plugin install plg@mkt`\n' > "$PW/README.md"
+  expect "插件名/0 与 manifest 一致时放行" 0 bash "$PN" "$PW"
+
+  printf '装：`claude plugin install old-plugin@mkt`\n' > "$PW/README.md"
+  expect "插件名/1 插件名过期必须被抓" 1 bash "$PN" "$PW"
+
+  printf '装：`claude plugin install plg@old-market`\n' > "$PW/README.md"
+  expect "插件名/1 市场名过期必须被抓" 1 bash "$PN" "$PW"
+
+  # ADR 是决策记录，记的是当时真跑过的命令 —— 不阻断
+  printf '装：`claude plugin install plg@mkt`\n' > "$PW/README.md"
+  printf '当时跑的是 `claude plugin install old-plugin@old-market`\n' > "$PW/docs/architecture/adr/ADR-x.md"
+  expect "插件名/0 ADR 里的历史命令不阻断" 0 bash "$PN" "$PW"
+
+  # 双向钉死：ADR 豁免不得写宽成"整仓放过"
+  printf '装：`claude plugin install old-plugin@mkt`\n' > "$PW/README.md"
+  expect "插件名/1 ADR 豁免不得外溢到别的文档" 1 bash "$PN" "$PW"
+
+  # 只有 ADR 有命令 = 仍然无法判定，不得因为"ADR 里有"就算数
+  printf '# 门面\n什么都没教\n' > "$PW/README.md"
+  expect "插件名/66 只有 ADR 有命令时不得算判定通过" 66 bash "$PN" "$PW"
+
+  printf '{"name":"mkt","plugins":[]}\n' > "$PW/.claude-plugin/marketplace.json"
+  printf '装：`claude plugin install plg@mkt`\n' > "$PW/README.md"
+  expect "插件名/66 manifest 无 plugin 条目时拒绝 PASS" 66 bash "$PN" "$PW"
+else
+  echo "  ⚠️  跳过：无 check-plugin-name.sh"
+fi
+
 # ---------- ratchet 负样本（S5，独立脚本）----------
 echo "-- ratchet.sh --"
 expect "ratchet 六用例（含替换违规总数不变）" 0 bash "$ROOT/tests/probe-negative/ratchet-negative.sh"

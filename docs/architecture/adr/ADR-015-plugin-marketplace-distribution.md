@@ -78,3 +78,28 @@ C15 要求供应链钉版。marketplace schema 原生支持 `source.sha`，本�
 - ⚠️ 本次 spike 在本机装了又卸，**未留下副作用**（`claude plugin list` 已确认清空）
 - 可复议条件：若 marketplace 支持分发 `.claude/` 之外的路径（多 source 或整仓模式），
   则可考虑用它承载完整平台，届时重开本 ADR
+
+## 后记
+
+- **2026-07-31 更名**：marketplace `aisep729-e2e` → `aisep`，插件 `e2e-platform` → `aisep`。
+  安装命令现为 `claude plugin install aisep@aisep`。
+  **本 ADR 正文与实测记录表保持原样未改**——上表 S2-a/S2-b 记录的是更名前实际跑出的命令与输出，
+  改写它等于声称跑过一条从未跑过的命令（C 系列对"证据不实"的口径）。
+  更名不涉及 `source`（仍是 `git-subdir` + `.claude` + 钉版 sha），故 S2-c/S2-d 的结论不受影响。
+- **更名的连带影响**：已经用旧名 `claude plugin marketplace add` 过的人，本机 marketplace 条目仍叫
+  `aisep729-e2e`，需 `claude plugin marketplace remove aisep729-e2e` 后重新 add；
+  插件缓存落点从 `~/.claude/plugins/cache/aisep729-e2e/` 变为 `~/.claude/plugins/cache/aisep/`
+  （退役清理需覆盖两处，见 `specs/platform-pilot/deprecation.md` 数据处置表）
+- **更名后重测（新名，2026-07-31）**：本机以本仓为 marketplace 源实测通过——
+  `claude plugin marketplace add <本仓路径>` → `Successfully added marketplace: aisep`；
+  `claude plugin install aisep@aisep` → `Successfully installed (scope: user)`，
+  `Version: 6be65b0de77e-e026f56c`（钉版 sha 前缀）；
+  `claude plugin details aisep` 报 **Skills (7) / Agents (3) / Hooks (0)**，
+  且从缓存目录直接跑阶段探针得 `FAIL(65)` 友好提示（非 bash 报错）——
+  即"插件不带门禁""hook 不自动生效"两条结论**在新名下重新拿到证据**。测完已卸载。
+- ⚠️ **上文「未留下副作用（`claude plugin list` 已确认清空）」说得太满，实测被证伪**：
+  卸载后 `~/.claude/plugins/cache/aisep729-e2e/e2e-platform/8306a8bd9c0f-e026f56c/`
+  仍留 **172K 完整内容**，只被打上 `.orphaned_at` 标记，**未被删除**。
+  `claude plugin list` 看不到它——所以那条证据**只能支撑"列表里没有"，支撑不了"没留下副作用"**。
+  这正是本仓反复强调的"结论没错但证据不实/说得太满"。卸载后要真清干净须手动
+  `rm -rf ~/.claude/plugins/cache/<market>/`（deprecation.md 的销毁核对已按两个路径写）

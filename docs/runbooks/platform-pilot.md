@@ -32,7 +32,7 @@ bash bin/e2e init /path/to/your-project  # 幂等，既有文件一律不覆盖
 
 ```bash
 claude plugin marketplace add Albertsun6/aisep729
-claude plugin install e2e-platform@aisep729-e2e
+claude plugin install aisep@aisep
 ```
 
 > ⚠️ 只装插件**拿不到探针**（`bin/e2e`、`scripts/check-*.sh`、`tests/probe-negative/` 都不在内）。
