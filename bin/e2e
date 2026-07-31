@@ -47,6 +47,9 @@ cmd_doctor() {
   echo "【目标栈层】按项目技术栈，缺失时相应能力降级"
   chk_opt jq       "brew install jq"          "结构化输出解析（AI 评审 workflow）" || warn=$((warn+1))
   chk_opt shellcheck "brew install shellcheck" "bash 项目的 ratchet linter 适配器" || warn=$((warn+1))
+  # 评审 reviewer #4 指出：check-demo-video.sh 引入了这两个外部依赖却从未在此声明（违反 C15）
+  chk_opt ffprobe  "brew install ffmpeg"     "演示视频交付判据探针（SPEC-25）" || warn=$((warn+1))
+  chk_opt gitleaks "brew install gitleaks"   "全历史 secret 扫描（门禁④ PRR）"   || warn=$((warn+1))
 
   echo
   if [ "$miss" -gt 0 ]; then

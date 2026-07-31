@@ -29,6 +29,8 @@ WHITELIST=(
   "docs/architecture/adr/ADR-015-plugin-marketplace-distribution.md"  # 说明 Claude Code 插件缓存落点，非运行时依赖
   "docs/implementation-manual.md"                             # §3.1 告知插件装到哪，读者需据此自查
   "specs/platform-pilot/review.md"                          # F-10：描述插件卸载后的缓存残留位置
+  "specs/platform-pilot/release.md"                         # PRR-9：说明插件卸载后的缓存残留位置
+  "docs/runbooks/platform-pilot.md"                         # §回滚 不可逆点④：同上，需告知读者清理路径
 )
 
 in_whitelist() {
