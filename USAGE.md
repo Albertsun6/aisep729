@@ -16,6 +16,28 @@
 | 质量棘轮 | `bash scripts/ratchet.sh` | `quality-baseline.txt` | 删基线文件 |
 | 服务端门禁行为证明 | `bash ops/check-branch-protection.sh` | GitHub 分支保护 API | 见下 §分支保护 |
 
+## 交付物在哪（M4 产出）
+
+| 产物 | 位置 | 验收方式 |
+|---|---|---|
+| **实施手册**（围绕陷阱目录组织） | `docs/implementation-manual.md` | `bash scripts/check-manual.sh` |
+| **演示视频** 9 分 04 秒中文旁白 | demo 仓 `docs/demo/win-loss-log-demo.mp4` | `bash scripts/check-demo-video.sh <mp4>` |
+| **插件市场入口** | `.claude-plugin/marketplace.json` | `claude plugin marketplace add Albertsun6/aisep729` |
+| **许可** | `LICENSE`（说明）+ `LICENSE-CODE`（Apache-2.0）+ `LICENSE-DOCS`（CC BY-SA 4.0） | 见 `LICENSE` 的适用范围表 |
+| **平台自己的六门禁台账** | `specs/platform-pilot/{prfaq,prd,spec,plan,tasks,review,release,deprecation}.md` | 七道阶段探针 `--final` 全 PASS |
+
+## 许可（用之前先看清用的是哪一部分）
+
+**双许可**，详见 [`LICENSE`](./LICENSE)：
+
+- **代码**（`.claude/` `scripts/` `ops/` `bin/` `tests/` `.github/` `.claude-plugin/`）→ **Apache-2.0**
+- **文档与方法论**（`docs/` `specs/` `USAGE.md` 及调研报告）→ **CC BY-SA 4.0**（署名 + 相同方式共享）
+
+企业内部使用**完全不受限**。基于本方法论做的培训材料/衍生手册**必须同样以 BY-SA 发布**。
+
+> GitHub 会把本仓的许可显示为 `Other` —— 双许可仓的正常结果（它的检测器只认单一标准文件）。
+> 把 `LICENSE-CODE` 改名成 `LICENSE` 能让它显示 "Apache-2.0"，但那对文档部分是**误导**，故不做。
+
 ## 探针清单（跑什么、拦什么）
 
 全部探针都遵守同一条纪律：**失败必须响亮**。任何"跳过 / 找不到就算过"都视为缺陷。
@@ -28,7 +50,10 @@
 | `scripts/check-skill-deps.sh` | skill 引用的文件必须真实存在 | 0/1/66 |
 | `scripts/check-clause-refs.sh` | 被引用的宪法条款必须有定义 | 0/1/66 |
 | `ops/check-branch-protection.sh` | 服务端门禁真的拦得住（**会写远端**） | 0/1/2/66 |
-| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（45 条负样本） | 0/1 |
+| `scripts/check-action-pins.sh` | 第三方 Action 必须 SHA-pin（C15） | 0/1/66 |
+| `scripts/check-manual.sh` | 实施手册结构 + **夸大表述自查**（SPEC-24） | 0/65/66 |
+| `scripts/check-demo-video.sh` | 演示视频交付判据（SPEC-25），**实测音量判静音** | 0/1/66 |
+| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**71 条**负样本） | 0/1 |
 | `.claude/skills/*/scripts/check-*.sh` | 各阶段制品结构 + 上游门禁串锁 | 0/64/65/66 |
 
 ### `check-shell-traps.sh` 拦的三类写法
@@ -110,8 +135,27 @@ gh api -X DELETE repos/<owner>/<repo>/branches/main/protection
 
 ## 已知未完成（不得对外声称已解决）
 
-- **Safari 未验证** —— `file://` 下的 localStorage 行为（ADR-003）
-- **分档强制** —— `check-review.sh` 只信 `review.md` 自填的档位，手填成低档探针发现不了
+> 本节**必须与实施手册 §7 对账**。过期的"已知限制"比没有更危险——
+> 它会让人以为某个问题还在、或已经解决了，两个方向都会误导。
+
+**仍未解决**：
+
+- **分档可手填绕过** —— `check-review.sh` 只信 `review.md` 自填的档位，手填成低档探针发现不了
 - **升档触发无强制力** —— 规模/依赖超限只有建议力，没有 CI job 计算并阻断
-- **第三方 Action 未 SHA-pin** —— 供应链条款（C15）尚无探针
-- **demo 公开仓无 LICENSE、未做完整历史 secret scan**
+- **文本门禁台账不是防篡改凭证** —— 本轮修的 critical 只堵了"隐形伪造"，
+  **没堵"有写权限的人公开篡改"**。真正解决要把批准移到服务端 review 事件（手册 §7.1b）
+- **`ai-review.yml.template` 让 LLM 对攻击者可控输入有阻断权** —— 仓已公开，fork PR 首次可能。
+  它未启用，**启用前必须先修**
+- **只有一个人跑过** —— 全部验证来自自建者 + AI 评审，**无真人冷启动验证**。
+  正式交付前应找人照手册从零跑一遍
+- **`Bash(bash bin/e2e*)` 是任意目录写入原语** —— `init`/`adopt` 可往任意目录写文件且自动放行
+- **仅 macOS 实测** —— Linux / Windows 未验证
+
+**已闭环（记录在此以免重复排查）**：
+
+| 曾经的限制 | 闭环方式 | 日期 |
+|---|---|---|
+| ~~Safari 未验证~~ | osascript 实测 C1-C11 全过；**证伪了 ADR-003 原判断**（Safari 同样允许且同样共享 origin） | 2026-07-31 |
+| ~~第三方 Action 未 SHA-pin~~ | 三处全钉 + 新建 `check-action-pins.sh`（C15 声明的探针此前根本不存在） | 2026-07-31 |
+| ~~两仓无 LICENSE~~ | demo=MIT；平台=双许可（代码 Apache-2.0 / 文档 CC BY-SA 4.0） | 2026-07-31 |
+| ~~未做完整历史 secret scan~~ | `gitleaks` 两仓全历史 + 自建全 blob 扫描，均 0 命中 | 2026-07-31 |
