@@ -1,0 +1,25 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "aisep729-e2e",
+  "description": "企业级端到端研发平台：七阶段 skill + 六道门禁 + 可证伪探针体系。每条主张都有一个会失败的负样本钉着。",
+  "owner": {
+    "name": "Albertsun6"
+  },
+  "plugins": [
+    {
+      "name": "e2e-platform",
+      "description": "七个阶段 skill（立项/需求/设计/实现/评审/发布/退役）+ 三个评审 agent + 两个 hook + 全套探针与 58 条负样本。门禁串锁：每阶段第 0 步硬校验上游门禁，不过即拒绝启动。",
+      "author": {
+        "name": "Albertsun6"
+      },
+      "category": "workflow",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/Albertsun6/aisep729.git",
+        "path": ".claude",
+        "ref": "main",
+        "sha": "8306a8bd9c0fda69fd3f54fb0b30a67089b32721"
+      }
+    }
+  ]
+}
