@@ -20,7 +20,7 @@
 
 在自建自用过程中，这套门禁抓到的真实缺陷有**两个可核对的口径**：
 **18 条**归纳成陷阱写进了[实施手册 §2](./docs/implementation-manual.md)（陷阱 A–R），
-**97 条**沉淀成可执行负样本（`bash tests/probe-negative/run.sh` 的分母）。
+**106 条**沉淀成可执行负样本（`bash tests/probe-negative/run.sh` 的分母）。
 下面这几条是它的分量：
 
 | 抓到的 | 如果没抓到，会发生什么 |
@@ -50,8 +50,8 @@
 | 阶段 skill | **7** | `e2e-discovery` / `requirements` / `design` / `implement` / `review` / `release` / `retire` |
 | 评审 agent | **3** | architect（架构预审）/ reviewer（内环）/ security（安全） |
 | hook | **2** | 改完文件即时 lint · 收工前强制验证 |
-| 探针 | **13** | 结构 / 自包含 / bash 陷阱 / skill 依赖 / 宪法条款 / Action 钉版 / 手册结构 / 视频判据 / AI 评审契约 / 服务端门禁行为证明 / README 门面 / 插件 sha 时效 / adopt 对等 |
-| **负样本** | **97** | **探针自身能否被证伪** —— 这是本项目最重要的数字。口径 = `bash tests/probe-negative/run.sh` 的分母，**跑一下就能核对** |
+| 探针 | **14** | 结构 / 自包含 / bash 陷阱 / skill 依赖 / 宪法条款 / Action 钉版 / 手册结构 / 视频判据 / AI 评审契约 / 服务端门禁行为证明 / README 门面 / 插件 sha 时效 / adopt 对等 / 插件名一致 |
+| **负样本** | **106** | **探针自身能否被证伪** —— 这是本项目最重要的数字。口径 = `bash tests/probe-negative/run.sh` 的分母，**跑一下就能核对** |
 | 工程宪法 | 15 条 | 不可妥协原则，每条含可执行检查 |
 | ADR | 15 份 | 每个决策含 ≥2 个真实备选 |
 

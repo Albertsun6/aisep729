@@ -182,6 +182,7 @@ scripts/check-action-pins.sh
 scripts/check-ai-review-contract.sh
 scripts/check-readme.sh
 scripts/check-marketplace-sha.sh
+scripts/check-plugin-name.sh
 scripts/check-selfcontained.sh
 scripts/check-adopt-parity.sh
 scripts/ratchet.sh
