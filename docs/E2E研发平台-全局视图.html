@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E2E 研发平台 — 全局视图</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  html { scroll-behavior: smooth; scroll-padding-top: 4rem; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+  .tbl th { background:#f4f4f5; text-align:left; font-weight:600; }
+  .tbl th, .tbl td { border:1px solid #e4e4e7; padding:.45rem .6rem; vertical-align:top; font-size:.83rem; line-height:1.55; }
+  .tbl tbody tr:hover { background:#fafaf9; }
+  .pill { display:inline-block; padding:.08rem .5rem; border-radius:9999px; font-size:.7rem; font-weight:600; white-space:nowrap; }
+  .pill-ok{background:#dcfce7;color:#166534}.pill-warn{background:#fef9c3;color:#854d0e}
+  .pill-muted{background:#e4e4e7;color:#3f3f46}.pill-info{background:#dbeafe;color:#1e40af}
+  .pill-must{background:#0f766e;color:#fff}.pill-should{background:#e4e4e7;color:#3f3f46}
+  pre.mermaid { background:transparent; display:flex; justify-content:center; overflow-x:auto; }
+  .navlink { font-size:.78rem; color:#52525b; padding:.2rem .6rem; border-radius:.375rem; }
+  .navlink:hover { background:#f4f4f5; color:#111; }
+  section h2 { scroll-margin-top: 4.5rem; }
+  @media print { #topbar{position:static!important} pre.mermaid,{break-inside:avoid} }
+</style>
+</head>
+<body class="bg-zinc-50 text-zinc-800">
+
+<header id="topbar" class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-zinc-200 shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-2 flex-wrap">
+    <h1 class="text-sm md:text-base font-bold text-zinc-900 mr-auto">E2E 研发平台 · 全局视图</h1>
+    <nav class="flex gap-1 flex-wrap">
+      <a class="navlink" href="#arch">①四层架构</a>
+      <a class="navlink" href="#stages">②六段×六门禁</a>
+      <a class="navlink" href="#paths">③双路径接入</a>
+      <a class="navlink" href="#stories">④Story 地图</a>
+      <a class="navlink" href="#milestones">⑤建设里程碑</a>
+      <a class="navlink" href="#review">⑥评审与红线</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-8 space-y-12">
+
+  <div class="bg-teal-50 border border-teal-200 rounded-lg p-4 text-[.88rem] leading-relaxed">
+    <strong>一句话</strong>：平台本身是产品（企业培训/咨询落地包，中文）。四层架构承载六段生命周期，六人审门禁 + 服务端硬门禁控质量；绿地一键初始化、存量"体检→非破坏接入→棘轮围栏→绞杀改善"；试点 = 平台仓 + demo 业务仓，13 条 Story，5 个建设里程碑。
+    <span class="text-zinc-500">依据：《Claude企业级E2E研发平台-完整报告》v2.1 + 《端到端阶段划分》调研 + /req-discovery 访谈。</span>
+  </div>
+
+  <!-- ① 四层架构 -->
+  <section>
+    <h2 id="arch" class="text-xl font-bold text-zinc-900 mb-3">① 四层平台架构（静态骨架）</h2>
+    <div class="bg-white rounded-lg border border-zinc-200 p-4">
+<pre class="mermaid">
+flowchart TB
+    subgraph L1["L1 工具无关真相层"]
+        A1["docs/：constitution · spine · ADR · C4<br/>process/{stages·gates·risk-tiers·prr·deprecation}"]
+        A2["specs/：prfaq→prd→spec→plan→tasks"]
+        A3["AGENTS.md（LF 中立标准）"]
+    end
+    subgraph L2["L2 Claude 适配层（.claude/）"]
+        B1["CLAUDE.md &lt;200行 @import"]
+        B2["skills/ e2e-*×7"]
+        B3["agents/ ×4：architect·reviewer·qa·security"]
+        B4["hooks×2 + rules/"]
+    end
+    subgraph L3["L3 能力分发层"]
+        C1["e2e-core plugin + 私有 marketplace<br/>（vendored 产品化，不依赖个人 ~/.claude）"]
+    end
+    subgraph L4["L4 企业控制平面"]
+        D1["✅ 试点实配：CI 双环 + ratchet + fitness fn"]
+        D2["📄 试点文档化：managed settings · OTel→SIEM · gateway"]
+        D3["DORA 五指标仪表（文档化）"]
+    end
+    L1 --> L2 --> L3
+    L4 -.管控.-> L2
+    L4 -.管控.-> L3
+</pre>
+    </div>
+    <p class="text-xs text-zinc-500 mt-2">铁律：<code>.claude/</code> 不放业务真相；hooks 非安全边界（硬策略=permission system + 服务端 CI/受保护分支）；✅=试点真做，📄=试点仅文档化。</p>
+  </section>
+
+  <!-- ② 六段×六门禁 -->
+  <section>
+    <h2 id="stages" class="text-xl font-bold text-zinc-900 mb-3">② 六段生命周期 × 六门禁（动态流程，两视图）</h2>
+    <div class="bg-white rounded-lg border border-zinc-200 p-4 mb-4">
+<pre class="mermaid">
+flowchart LR
+    DISC["prfaq.md<br/>立项一页纸"] -->|"⓪立项/下注"| PRD["prd.md<br/>+Stories"]
+    PRD -->|"①需求确认"| SPEC["spec.md"]
+    SPEC -->|"②架构评审"| PLAN["plan.md+ADR"]
+    PLAN --> TASKS["tasks.md"] --> CODE["code+tests<br/>TDD"]
+    CODE -->|"hooks本地阻断<br/>+CI required checks"| PR["Pull Request"]
+    PR -->|"③合并批准<br/>risk-tiers路由"| REL["Release<br/>PRR清单"]
+    REL -->|"④生产放行"| OPS["运维<br/>runbook/DORA"]
+    OPS -->|"⑤退役评审"| RET["退役<br/>deprecation"]
+    OPS -.事故回流.-> PRD
+    CODE -.评审不过循环.-> TASKS
+</pre>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="tbl w-full">
+        <thead><tr><th>段</th><th>入口条件</th><th>核心产物</th><th>出口=门禁（谁批）</th><th>负责 skill</th><th>试点程度</th></tr></thead>
+        <tbody>
+          <tr><td>1 战略/立项</td><td>有一个想法</td><td>prfaq.md（价值/appetite/不做什么）</td><td>⓪ 立项下注（产品/业务负责人）</td><td>e2e-discovery</td><td><span class="pill pill-ok">全做</span></td></tr>
+          <tr><td>2 产品发现</td><td>⓪通过</td><td>prd.md + Stories（G/W/T+MoSCoW）</td><td>① 需求确认（产品负责人）</td><td>e2e-requirements</td><td><span class="pill pill-ok">全做</span></td></tr>
+          <tr><td>3 定义/设计</td><td>①通过</td><td>spec + plan + ADR</td><td>② 架构评审（architect 预审+架构师批）</td><td>e2e-design</td><td><span class="pill pill-ok">全做</span></td></tr>
+          <tr><td>4 构建与交付</td><td>②通过</td><td>tasks→code+tests→PR→release</td><td>hooks+CI 硬门禁；③ 合并（risk-tiers 路由）；④ 放行（PRR）</td><td>e2e-implement / e2e-review / e2e-release</td><td><span class="pill pill-ok">skill+CI 真跑</span> <span class="pill pill-warn">部署 demo 级</span></td></tr>
+          <tr><td>5 运营/演进</td><td>④通过</td><td>runbook、监控、事故回流</td><td>事故→回段 1/2</td><td>（runbook 由 e2e-release 产出）</td><td><span class="pill pill-warn">runbook 真做，监控文档化</span></td></tr>
+          <tr><td>6 退役</td><td>拟下线</td><td>deprecation 计划</td><td>⑤ 退役评审（架构师+产品）</td><td>e2e-retire</td><td><span class="pill pill-warn">skill 真做，demo 演练</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-zinc-500 mt-2">边界铁律：未过门禁，下一段 skill 拒绝启动；门禁证据触发而非日期；密度按 risk-tiers 分档（NASA 硬 gate ↔ Amazon 一页纸）。</p>
+  </section>
+
+  <!-- ③ 双路径接入 -->
+  <section>
+    <h2 id="paths" class="text-xl font-bold text-zinc-900 mb-3">③ 双路径接入：绿地 vs 存量（brownfield 是培训受众主场景）</h2>
+    <div class="bg-white rounded-lg border border-zinc-200 p-4 mb-3">
+<pre class="mermaid">
+flowchart TB
+    START{"项目状态？"} -->|"新项目"| INIT["e2e init 一键脚手架<br/>全套目录+配置+自检探针"]
+    INIT --> FULL["直接六门禁全流程"]
+    START -->|"存量项目"| ASSESS["阶段0 体检 e2e assess<br/>churn×complexity 热图·死代码·覆盖率<br/>→ risk-tiers 初稿 + 热点清单"]
+    ASSESS --> ADOPT["阶段1 基线固化 e2e adopt<br/>非破坏叠加·as-is spine.md·追认 ADR<br/>（不补历史文档，不写理想架构）"]
+    ADOPT --> FENCE["阶段2 围栏先行<br/>CI ratchet（存量豁免·新增阻断·基线只降）<br/>热点上特征测试·先只挂门禁③"]
+    FENCE --> STRANGLE["阶段3 绞杀改善<br/>新功能走 delta-spec 全流程<br/>老代码触碰时顺手改·重构须⓪立项<br/>fitness functions 防架构恶化"]
+    STRANGLE --> MEASURE["阶段4 度量闭环<br/>DORA+基线余额+热点数 看趋势"]
+    MEASURE -.跑顺后.-> EXPAND["门禁向两端扩⓪-⑤"]
+</pre>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="tbl w-full">
+        <thead><tr><th>存量四阶段</th><th>边界（做什么/不做什么）</th><th>出口条件（可验证）</th></tr></thead>
+        <tbody>
+          <tr><td>0 体检</td><td>只诊断不动刀；产出证据不产出判断</td><td>体检报告 + risk-tiers 初稿 + 热点清单生成</td></tr>
+          <tr><td>1 基线固化</td><td>as-is 如实记录；<b>不</b>补历史文档、<b>不</b>写理想架构、<b>不</b>立即重构</td><td>spine.md/AGENTS.md/追认 ADR 就位；冲突清单为空或已处理</td></tr>
+          <tr><td>2 围栏</td><td>先不恶化再谈改善；<b>不</b>要求存量一次达标</td><td>ratchet 在 CI 生效（新增违规可阻断的探针证明）；热点特征测试就位</td></tr>
+          <tr><td>3 绞杀</td><td>新功能全流程；老代码触碰式改善；<b>禁</b>无立项大重构</td><td>≥1 个 delta-spec 变更走通六门禁</td></tr>
+          <tr><td>4 度量</td><td>看趋势不看绝对值</td><td>基线余额下降曲线可导出</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ④ Story 地图 -->
+  <section>
+    <h2 id="stories" class="text-xl font-bold text-zinc-900 mb-3">④ Story 地图（13 条 ↔ 架构层/生命周期段）</h2>
+    <div class="overflow-x-auto">
+      <table class="tbl w-full">
+        <thead><tr><th>US</th><th>名称</th><th>优先级</th><th>落在哪层/段</th><th>关键验收（摘要）</th></tr></thead>
+        <tbody>
+          <tr><td>US-1</td><td>双模式接入 init / assess+adopt</td><td><span class="pill pill-must">Must</span></td><td>L2/L3 · 入口</td><td>绿地目录树自检探针绿；存量非破坏叠加+as-is 基线+delta-spec</td></tr>
+          <tr><td>US-2</td><td>需求段 skills（discovery+requirements）</td><td><span class="pill pill-must">Must</span></td><td>段 1-2</td><td>prfaq→⓪；prd+Stories→①；未批门禁下一段拒启动</td></tr>
+          <tr><td>US-3</td><td>设计段 skill（design+architect）</td><td><span class="pill pill-must">Must</span></td><td>段 3</td><td>spec/plan/ADR + 预审 →②；宪法冲突显式列出</td></tr>
+          <tr><td>US-4</td><td>实现段 skill + 2 hooks</td><td><span class="pill pill-must">Must</span></td><td>段 4</td><td>tasks 带验证方式；PostToolUse lint；Stop 测试不过不收工</td></tr>
+          <tr><td>US-5</td><td>评审段 + CI 双环 + 选择性评审路由</td><td><span class="pill pill-must">Must</span></td><td>段 4 · L4</td><td>内环 findings 留痕；外环真实阻断；高风险路径强制人审</td></tr>
+          <tr><td>US-6</td><td>收尾段（release+retire）</td><td><span class="pill pill-must">Must</span></td><td>段 4-6</td><td>PRR+runbook→④；deprecation→⑤</td></tr>
+          <tr><td>US-7</td><td>vendored 产品化自包含</td><td><span class="pill pill-must">Must</span></td><td>L3</td><td>grep 个人路径零命中；干净环境可运行</td></tr>
+          <tr><td>US-8</td><td>demo 仓全链路</td><td><span class="pill pill-must">Must</span></td><td>全部</td><td>六门禁留痕齐全；应用可跑；CI 真绿（选题待定）</td></tr>
+          <tr><td>US-9</td><td>实施手册（中文）</td><td><span class="pill pill-must">Must</span></td><td>交付物</td><td>新用户不提问可走通；含存量 playbook + L4 指引</td></tr>
+          <tr><td>US-10</td><td>演示视频</td><td><span class="pill pill-must">Must</span></td><td>交付物</td><td>中文旁白全流程（依赖 US-8；demo-video 自动化）</td></tr>
+          <tr><td>US-11</td><td>marketplace 分发演示</td><td><span class="pill pill-should">Should</span></td><td>L3</td><td>私有 marketplace 安装 e2e-core</td></tr>
+          <tr><td>US-12</td><td>平台仓自举治理</td><td><span class="pill pill-should">Should</span></td><td>元层</td><td>平台自己的 constitution/ADR/specs 留痕</td></tr>
+          <tr><td>US-13</td><td>存量治理机制（ratchet+台账+fitness fn）</td><td><span class="pill pill-must">Must</span></td><td>L4 · 存量</td><td>基线只降不升；tech-debt 台账；重构须⓪立项；架构断言进 CI</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ⑤ 建设里程碑 -->
+  <section>
+    <h2 id="milestones" class="text-xl font-bold text-zinc-900 mb-3">⑤ 试点建设里程碑 M0-M4（边界=可验证出口条件）</h2>
+    <div class="bg-white rounded-lg border border-zinc-200 p-4 mb-3">
+<pre class="mermaid">
+flowchart LR
+    M0["M0 文档与立项<br/>（当前所在）"] --> M1["M1 平台仓骨架"] --> M2["M2 能力层"] --> M3["M3 全链路验证"] --> M4["M4 交付打包"]
+</pre>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="tbl w-full">
+        <thead><tr><th>里程碑</th><th>范围（做什么）</th><th>边界（不做什么）</th><th>出口条件（过线才进下一段）</th><th>对应 US</th></tr></thead>
+        <tbody>
+          <tr class="bg-teal-50/50"><td><b>M0 文档与立项</b><br/><span class="pill pill-info">当前</span></td><td>stories 确认 → 逐阶段展开：每到一个阶段当场产出<b>六件套</b>（定义文档/制品模板/目录约定/名词/<b>skill 实现</b>/<b>验收探针</b>）并在平台自身上实跑 → prfaq/prd（⓪①=你批）→ spec/plan/ADR/constitution（异构评审+②=你批）→ tasks</td><td>不写 demo 业务代码；不建平台仓基建（脚手架/CI）</td><td>全部设计文档过门禁②；各阶段 skill 探针绿；tasks 每条带验证方式</td><td>US-2~6 的 skill 随阶段落地</td></tr>
+          <tr><td><b>M1 平台仓骨架</b></td><td>建仓 + 目录模板 + init/assess/adopt 脚手架 + 自检探针</td><td>不写 7 个 skill 的正文；不接 CI</td><td>US-1 全部 AC 探针绿（绿地+存量样例各一）</td><td>US-1</td></tr>
+          <tr><td><b>M2 能力层打磨</b></td><td>skill 已随 M0 各阶段实现——本段做 vendored 整合打磨 + 4 agents + 2 hooks + 自包含化</td><td>不做 demo 业务功能；不做手册</td><td>每 skill 在测试项目复跑所在段；US-7 自包含探针零命中</td><td>US-4~7 收尾</td></tr>
+          <tr><td><b>M3 全链路验证</b></td><td>demo 仓真实功能六门禁走通 + CI 双环真绿 + ratchet/fitness fn 在存量样例验证</td><td>不真实生产部署（④⑤文档级演练）</td><td>US-8/US-13 全部 AC 绿；六门禁留痕可审计</td><td>US-8, US-13</td></tr>
+          <tr><td><b>M4 交付打包</b></td><td>实施手册 + 演示视频 + marketplace 演示 + 自举留痕补全</td><td>培训 PPT/英文文档（二期）</td><td>干净环境仅凭平台仓走通（探针）；手册新用户不提问可落地；视频成片</td><td>US-9~12</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-zinc-500 mt-2">M0 内部即将逐级展开讨论：立项⓪ → 需求① → 设计② →（每阶段先讨论再产出，产出后按评审分档过审）。</p>
+  </section>
+
+  <!-- ⑥ 评审与红线 -->
+  <section>
+    <h2 id="review" class="text-xl font-bold text-zinc-900 mb-3">⑥ 制作过程选择性评审 + 试点范围红线</h2>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="overflow-x-auto">
+        <table class="tbl w-full">
+          <thead><tr><th>风险档</th><th>产物</th><th>评审方式</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pill pill-warn">高</span></td><td>spec/plan/ADR/constitution/门禁定义</td><td>异构评审（多轮辩论）+ 你人审</td></tr>
+            <tr><td><span class="pill pill-info">中</span></td><td>脚手架/hooks/skill 可执行部分</td><td>可执行验证必过 + 单 lens AI 评审一轮</td></tr>
+            <tr><td><span class="pill pill-muted">低</span></td><td>手册正文/README/旁白稿</td><td>你抽查 + 链接/拼写探针</td></tr>
+            <tr><td colspan="2">门禁打回 ≥2 次</td><td>自动升一档</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-[.85rem] leading-relaxed">
+        <p class="font-semibold mb-2">试点范围红线（不做）</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>L4 managed settings / OTel→SIEM / gateway：仅文档化</li>
+          <li>Tier 2 权限探针实测：二期（随 L4 实配）</li>
+          <li>培训 PPT / 英文文档：二期</li>
+          <li>真实生产部署：demo 级即止</li>
+          <li>不承诺"治好烂架构"：只看清/锁住/按数据逐步改；重构立项走⓪</li>
+        </ul>
+        <p class="font-semibold mt-3 mb-1">待澄清</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>demo 选题（候选：门禁看板自举）</li>
+          <li>仓库命名与托管（私有→公开时机）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <p class="text-xs text-zinc-400 pt-4 border-t border-zinc-200">E2E 研发平台全局视图 · 2026-07-30 · 配套：《E2E研发平台试点-stories.md》《Claude企业级E2E研发平台-完整报告.md》(v2.1)《企业级软件开发端到端阶段划分-完整报告.md》</p>
+</main>
+
+<script>mermaid.initialize({ startOnLoad: true, theme: 'neutral', flowchart: { htmlLabels: true } });</script>
+</body>
+</html>

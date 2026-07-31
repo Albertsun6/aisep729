@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基于 Claude Code 的企业级端到端（E2E）软件研发平台 — 调研报告</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  html { scroll-behavior: smooth; scroll-padding-top: 4.5rem; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+  .prose-zh h2 { scroll-margin-top: 5rem; }
+  .prose-zh h3 { scroll-margin-top: 5rem; }
+  table { border-collapse: collapse; }
+  .tbl th { background:#f4f4f5; text-align:left; font-weight:600; }
+  .tbl th, .tbl td { border:1px solid #e4e4e7; padding:.5rem .65rem; vertical-align:top; font-size:.85rem; line-height:1.55; }
+  .tbl tbody tr:hover { background:#fafaf9; }
+  .pill { display:inline-block; padding:.1rem .55rem; border-radius:9999px; font-size:.72rem; font-weight:600; white-space:nowrap; }
+  .pill-ok   { background:#dcfce7; color:#166534; }
+  .pill-warn { background:#fef9c3; color:#854d0e; }
+  .pill-muted{ background:#e4e4e7; color:#3f3f46; }
+  .pill-info { background:#dbeafe; color:#1e40af; }
+  pre.tree { background:#18181b; color:#d4d4d8; font-size:.78rem; line-height:1.6; padding:1rem 1.25rem; border-radius:.5rem; overflow-x:auto; }
+  pre.mermaid { background:transparent; display:flex; justify-content:center; }
+  .toc a { display:block; padding:.28rem .75rem; border-left:2px solid transparent; color:#52525b; font-size:.82rem; line-height:1.4; }
+  .toc a:hover { color:#111; background:#f4f4f5; }
+  .toc a.active { border-left-color:#0f766e; color:#0f766e; font-weight:600; background:#f0fdfa; }
+  .anchor-link { color:inherit; text-decoration:none; }
+  a.ext { color:#0f766e; text-decoration:underline; text-decoration-color:#99f6e4; text-underline-offset:2px; }
+  a.ext:hover { text-decoration-color:#0f766e; }
+  details > summary { cursor:pointer; }
+  @media print {
+    #toc-sidebar, #topbar-actions { display:none !important; }
+    #topbar { position:static !important; box-shadow:none !important; }
+    main { margin-left:0 !important; max-width:100% !important; }
+    details { open: true; }
+    details > summary { display:none; }
+    details[open] { display:block; }
+    body { font-size: 11px; }
+    .tbl th, .tbl td { font-size: 9.5px; padding:.3rem .4rem; }
+    a { color:#111 !important; text-decoration:none !important; }
+    h2 { break-after: avoid; }
+    tr, pre { break-inside: avoid; }
+  }
+</style>
+</head>
+<body class="bg-zinc-50 text-zinc-800">
+
+<!-- Sticky top bar -->
+<header id="topbar" class="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-zinc-200 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-3 flex-wrap">
+    <h1 class="text-sm md:text-base font-bold text-zinc-900 mr-auto">基于 Claude Code 的企业级端到端（E2E）软件研发平台 · 调研报告</h1>
+    <span class="pill pill-ok">总体置信度：高</span>
+    <span class="pill pill-info">四路异构搜索 + 终审辩论</span>
+    <span class="pill pill-warn">v2 并入阶段划分调研</span>
+    <span class="pill pill-muted">2026-07-30</span>
+    <span id="topbar-actions">
+      <button onclick="window.print()" class="text-xs px-3 py-1.5 rounded border border-zinc-300 hover:bg-zinc-100 font-medium">打印 / 存 PDF</button>
+    </span>
+  </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 flex gap-8">
+
+  <!-- Sticky TOC -->
+  <nav id="toc-sidebar" class="hidden lg:block w-60 shrink-0 py-8">
+    <div class="sticky top-16">
+      <p class="text-xs font-semibold text-zinc-400 uppercase tracking-wider px-3 mb-2">目录</p>
+      <div class="toc border-l border-zinc-200" id="toc"></div>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="prose-zh flex-1 min-w-0 py-8 max-w-4xl">
+
+    <section class="mb-10 bg-white rounded-lg border border-zinc-200 p-6">
+      <h2 id="tldr" class="text-xl font-bold text-zinc-900 mb-4">TL;DR（执行摘要）</h2>
+      <ol class="list-decimal pl-5 space-y-2.5 text-[.92rem] leading-relaxed">
+        <li><strong>没有任何单一开源方案覆盖企业完整 SDLC</strong>——spec-kit、BMAD、OpenSpec、ccpm 都强于"需求→开发"，发布、运维、审计必须由企业控制平面补齐（三方独立得出同一结论）。</li>
+        <li>正确做法是<strong>四层平台架构</strong>：工具无关真相层（docs/specs/AGENTS.md）→ Claude 适配层（.claude/）→ 能力分发层（内部 plugin marketplace）→ 企业控制平面（managed settings / CI / 审计 / 网关）。</li>
+        <li><strong>流程分两个视图</strong>：外层治理视图用 6 段端到端底图（战略/立项 → 产品发现 → 定义/设计 → 构建与交付 → 运营/演进 → 退役，配套调研四路独立收敛的骨架）；内层执行视图由"产物状态机"驱动：PR-FAQ → PRD → spec → plan/ADR → tasks → code+tests → PR → release → runbook → 退役，在立项、需求确认、架构评审、合并、生产放行、退役六处设人审门禁——<strong>门禁密度按风险与合规强度配置、由证据触发而非日期</strong>；hooks 做本地确定性检查、服务端 CI/受保护分支做不可绕过门禁。</li>
+        <li>2026-07 组件边界：<strong>commands 已并入 skills</strong>（旧目录兼容、新项目一律用 <code>.claude/skills/</code>）；Agent Teams（<code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>）与 Dynamic Workflows 仍是实验特性，<strong>不要进平台核心</strong>。</li>
+        <li>落地路径：以 <strong>spec-kit 的产物链与人审门禁</strong>为骨架借鉴（不必整套照搬），目录自建（本报告给出完整目录树），用官方 plugin marketplace 机制做团队分发，Spotify/Intercom/Anthropic 的一手实践提供发布与治理段的参照。</li>
+      </ol>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="question" class="text-xl font-bold text-zinc-900 mb-3">研究问题</h2>
+      <p class="text-[.92rem] leading-relaxed bg-white rounded-lg border border-zinc-200 p-5">在企业环境下，基于 Claude Code / Claude Agent SDK 生态搭建覆盖完整 SDLC（需求→设计→开发→测试→发布→运维）的软件开发平台：现有开源项目与社区实践如何组织目录结构与文件内容，如何编排流程（阶段门禁、人审介入、产物流转），架构文档与流程文档如何设计？</p>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="dimensions" class="text-xl font-bold text-zinc-900 mb-3">评估维度</h2>
+      <p class="text-sm text-zinc-500 mb-2">等权五维（1-5 分，✓ = 该维度最优，? = 数据不足不填空分）：</p>
+      <ol class="list-decimal pl-5 space-y-1 text-[.92rem]">
+        <li><strong>SDLC 覆盖完整度</strong>——覆盖需求/设计/开发/测试/发布/运维全流程，还是仅部分环节</li>
+        <li><strong>企业级成熟度</strong>——治理、权限、审计、质量门禁、团队分发、CI 集成</li>
+        <li><strong>目录结构组织</strong>——结构清晰度、可维护性、可移植性</li>
+        <li><strong>流程编排机制</strong>——阶段门禁、人机协作点、产物流转设计</li>
+        <li><strong>社区活跃度与可持续性</strong>——真实采用、release 频率、维护状态</li>
+      </ol>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="landscape" class="text-xl font-bold text-zinc-900 mb-4">生态全景：别人是怎么做的</h2>
+
+      <h3 class="text-lg font-semibold text-zinc-800 mb-3">官方原语与组件边界（2026-07 现状）</h3>
+      <div class="overflow-x-auto mb-6">
+        <table class="tbl w-full">
+          <thead><tr><th class="w-40">组件</th><th class="w-56">定位</th><th>企业相关要点</th></tr></thead>
+          <tbody>
+            <tr><td><strong>CLAUDE.md</strong></td><td>常驻规则（advisory，建议性）</td><td>官方四层：managed policy（系统目录下发）→ user → project（建议 &lt;200 行）→ local；支持 <code>@path</code> import 与 path-scoped <code>.claude/rules/</code>（<a class="ext" href="https://code.claude.com/docs/en/memory">memory</a>）</td></tr>
+            <tr><td><strong>Skills</strong>（<code>.claude/skills/&lt;name&gt;/SKILL.md</code>）</td><td>按需加载的能力单元，渐进式披露</td><td><strong>2026 年官方已把 slash commands 并入 skills</strong>，旧 <code>.claude/commands/</code> 兼容但新项目推荐 skills（<a class="ext" href="https://code.claude.com/docs/en/skills">skills 文档</a>、<a class="ext" href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">CHANGELOG</a> 双源证实）；SKILL.md 已成开放标准，跨 Claude/Codex 等工具（<a class="ext" href="https://agentskills.io/specification">agentskills.io</a>）</td></tr>
+            <tr><td><strong>Subagents</strong>（<code>.claude/agents/*.md</code>）</td><td>隔离上下文的角色（YAML frontmatter 定义 tools/model/prompt）</td><td>承担评审员、架构师、QA 等独立视角</td></tr>
+            <tr><td><strong>Hooks</strong></td><td><strong>确定性本地检查</strong>（每次都执行，区别于 CLAUDE.md 的 advisory；但<strong>不是安全边界</strong>）</td><td>本地快反馈门禁：PostToolUse 跑 lint、Stop hook 阻断"测试不过就想收工"（<a class="ext" href="https://code.claude.com/docs/en/hooks-guide">hooks-guide</a>）。官方明示其 <code>if</code> 过滤 best-effort/fail-open，<strong>硬性 allow/deny 要用 <a class="ext" href="https://code.claude.com/docs/en/hooks">permission system</a> 而非 hook</strong>；企业可用 <code>allowManagedHooksOnly</code> 只放行组织审核过的 hooks</td></tr>
+            <tr><td><strong>Plugins + Marketplace</strong></td><td>团队分发单元：<code>.claude-plugin/plugin.json</code> + skills/agents/hooks/.mcp.json 打包</td><td>私有 marketplace 版本化分发；<code>extraKnownMarketplaces</code>+<code>enabledPlugins</code> 自动装配；managed settings 用 <code>strictKnownMarketplaces</code>/<code>disableSideloadFlags</code> 管控白名单（<a class="ext" href="https://code.claude.com/docs/en/plugin-marketplaces">plugin-marketplaces</a>）</td></tr>
+            <tr><td><strong>Headless / CI</strong></td><td><code>claude -p</code> 无头模式、<a class="ext" href="https://github.com/anthropics/claude-code-action">claude-code-action</a></td><td>CI 内跑完整 Claude Code，@claude PR 自动化（<a class="ext" href="https://code.claude.com/docs/en/github-actions">github-actions</a>）</td></tr>
+            <tr><td><strong>Agent SDK</strong></td><td>自建平台的官方底座：gather context → take action → verify work</td><td>终端有人用 Claude Code；进产品/进流水线用 SDK（<a class="ext" href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk">官方博客</a>、<a class="ext" href="https://code.claude.com/docs/en/agent-sdk/">agent-sdk 文档</a>）；注意 2025-26 从 "Claude Code SDK" 更名 "Claude Agent SDK" 的<a class="ext" href="https://code.claude.com/docs/en/agent-sdk/migration-guide">破坏性变更</a></td></tr>
+            <tr><td><strong>企业管控</strong></td><td>managed settings（本地不可覆盖）、sandbox、企业 CLAUDE.md 下发、LLM gateway、中央 <code>.mcp.json</code></td><td><a class="ext" href="https://code.claude.com/docs/en/admin-setup">admin-setup</a>、<a class="ext" href="https://code.claude.com/docs/en/bedrock-vertex">bedrock-vertex</a>；官方 <a class="ext" href="https://code.claude.com/docs/en/claude-apps-gateway">Claude apps gateway</a>（自托管网关：SSO、分组模型权限、OTLP 遥测）；OTel 输出会话/成本/工具决策/安全事件 → SIEM（<a class="ext" href="https://code.claude.com/docs/en/monitoring-usage">monitoring-usage</a>）</td></tr>
+            <tr><td><strong>实验特性</strong> <span class="pill pill-warn">勿进核心</span></td><td>Agent Teams（<code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>，<a class="ext" href="https://code.claude.com/docs/en/agent-teams">官方标 experimental</a>）；Dynamic Workflows（v2.1.154 research preview，<a class="ext" href="https://code.claude.com/docs/en/whats-new/2026-w22">whats-new</a>）；<a class="ext" href="https://claude.com/blog/claude-managed-agents">Managed Agents</a>（2026-04-08 公测）</td><td>追踪但不依赖；GA 后再评估引入</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="text-lg font-semibold text-zinc-800 mb-3">现有开源框架盘点</h3>
+      <div class="space-y-4 text-[.9rem] leading-relaxed">
+        <div class="bg-white rounded-lg border border-zinc-200 p-5">
+          <p class="font-semibold text-zinc-900 mb-2">Spec-Driven Development（SDD）主流阵营</p>
+          <ul class="list-disc pl-5 space-y-2">
+            <li><a class="ext" href="https://github.com/github/spec-kit"><strong>GitHub spec-kit</strong></a>（124.6k★，GitHub 官方，v0.14.4 活跃）：SDD 事实标准。命令链 <code>/speckit.constitution → specify → clarify → plan → tasks → analyze → implement → converge</code>，clarify/analyze/checklist 是显式质量检查点。人审介入的准确边界（<a class="ext" href="https://github.com/github/spec-kit/blob/main/docs/reference/workflows.md">官方 workflow 参考</a>）：交互式用法中每个命令边界天然人在环；但<strong>自动化 workflow 模式官方显式 gate 仅 <code>review-spec</code> 与 <code>review-plan</code> 两处，implement 之后没有终审 gate</strong>，且 workflow 的 shell step 以用户权限运行、<strong>无 capability sandbox</strong>——照搬其自动化编排时须自行补齐实现后的审查与执行隔离。产物：<code>.specify/memory/constitution.md</code>（工程宪法）、<code>specs/</code>、<code>.specify/templates/</code>（企业定制走 bundles/presets/extensions 覆盖链）。工具无关。（<a class="ext" href="https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/">发布文</a>）</li>
+            <li><a class="ext" href="https://github.com/Fission-AI/OpenSpec"><strong>OpenSpec</strong></a>（v1.7.0 活跃）：<strong>brownfield-first</strong> 的 delta specs——proposal/design/tasks 描述"变更"，archive 时合并为当前真相。存量系统改造比 spec-kit 更贴。</li>
+            <li><a class="ext" href="https://github.com/Pimzino/claude-code-spec-workflow"><strong>Pimzino/claude-code-spec-workflow</strong></a>（3.8k★，<strong>已停更</strong>）：开创 <code>.claude/specs/&lt;feature&gt;/{requirements,design,tasks}.md</code> 三件套 + <code>.claude/bugs/</code> 四件套 + <code>.claude/steering/</code> 模式；README 已挂弃用声明，转向同作者 spec-workflow-mcp。<strong>教训：纯 prompt 框架生命周期短，形态在向 MCP/plugin 收敛</strong>。</li>
+          </ul>
+        </div>
+        <div class="bg-white rounded-lg border border-zinc-200 p-5">
+          <p class="font-semibold text-zinc-900 mb-2">全流程方法论阵营</p>
+          <ul class="list-disc pl-5 space-y-2">
+            <li><a class="ext" href="https://github.com/bmad-code-org/BMAD-METHOD"><strong>BMAD-METHOD v6</strong></a>（51.3k★，v6.10.0 活跃）：角色最全的多 agent 敏捷框架——<code>src/bmm-skills/{1-analysis, 2-plan-workflows, 3-solutioning, 4-implementation}</code> 编号阶段目录，每阶段配角色 agent（analyst/PM/UX/architect/dev）+ 工作流 skill；<code>bmad-check-implementation-readiness</code> 是 3→4 阶段显式门禁；已带 marketplace.json 转 plugin 分发（<a class="ext" href="https://docs.bmad-method.org">docs</a>）。<strong>但发布/运维控制平面不在其内</strong>。自我修正：2026-06 <a class="ext" href="https://github.com/bmad-code-org/BMAD-METHOD/pull/2467">PR#2467</a> 把"易腐化的大 architecture.md"改为精简 Architecture Spine + lint + 并行 reviewer gate——<strong>大文档会腐化，架构文档要瘦身</strong>是社区用血泪换的教训。</li>
+            <li><a class="ext" href="https://github.com/automazeio/ccpm"><strong>ccpm</strong></a>：PM 层编排——PRD→epic→任务分解→GitHub Issues 同步→worktree 并行 agent，<strong>每阶段显式人审</strong>；目录 <code>.claude/prds/</code>、<code>.claude/epics/&lt;feature&gt;/</code>；<strong>Issue 评论即审计轨迹</strong>，原则"每行代码可追溯到 spec"。</li>
+            <li><a class="ext" href="https://github.com/obra/superpowers"><strong>Superpowers</strong></a>（v6.2.0 活跃）：开发纪律 plugin——brainstorming、设计批准、计划、subagent 开发、TDD、双阶段评审。适合作纪律插件，非完整 SDLC。</li>
+            <li><a class="ext" href="https://github.com/buildermethods/agent-os"><strong>Agent OS</strong></a>：标准注入优先——profiles/ 组织标准库 + plan-product/shape-spec 命令，先把"组织怎么写代码"注入再干活。</li>
+          </ul>
+        </div>
+        <div class="bg-white rounded-lg border border-zinc-200 p-5">
+          <p class="font-semibold text-zinc-900 mb-2">编排基建与质量门禁阵营</p>
+          <ul class="list-disc pl-5 space-y-2">
+            <li><a class="ext" href="https://github.com/ruvnet/ruflo"><strong>ruflo（原 claude-flow）</strong></a>（66.5k★）：已改名，定位多 harness "meta-harness"（swarm/自学习记忆/联邦通信）。<strong>两路异构 lens 独立给出同一保留意见：功能面极大但企业级声明主要来自项目自身，需独立 PoC 验证</strong>。</li>
+            <li><a class="ext" href="https://github.com/SuperClaude-Org/SuperClaude_Framework"><strong>SuperClaude</strong></a>（23.6k★）：命令/认知 persona 配置框架，SDLC 阶段化特异性弱。</li>
+            <li><a class="ext" href="https://github.com/closedloop-ai/claude-plugins"><strong>closedloop-ai/claude-plugins</strong></a>：<code>critic-gates.json</code>（文件模式→指派评审 agent + reviewBudget）实现"产物绑定、循环到正确"的门禁路由，含 LLM-as-judge plugin 与 evals/rubric，跨 Claude/Codex。</li>
+            <li><a class="ext" href="https://github.com/OneRedOak/claude-code-workflows"><strong>OneRedOak/claude-code-workflows</strong></a>（3.9k★，2025-09 后未更）：确立 <strong>slash-command 内环 + GitHub Actions 外环</strong>的 code/security/design review 双环模式。</li>
+            <li><a class="ext" href="https://github.com/wshobson/agents"><strong>wshobson/agents</strong></a>：单一 Markdown 源生成 Claude/Codex/Gemini 多 harness 适配器——<strong>"一份真相、多工具适配"的组织方法</strong>。</li>
+          </ul>
+        </div>
+        <div class="bg-white rounded-lg border border-zinc-200 p-5">
+          <p class="font-semibold text-zinc-900 mb-2">文档与标准生态</p>
+          <ul class="list-disc pl-5 space-y-2">
+            <li><a class="ext" href="https://www.linuxfoundation.org/press/linux-foundation-announces-the-formation-of-the-agentic-ai-foundation"><strong>AGENTS.md</strong></a>：2025-12 起由 Linux Foundation（Agentic AI Foundation）中立治理，与 MCP 同列，已被大量非 Claude 工具采用——<strong>工具无关真相层的载体</strong>。</li>
+            <li><strong>架构即代码</strong>：<a class="ext" href="https://docs.spryker.com/docs/dg/dev/architecture/architecture-as-code">Spryker 实践</a>（Git 内 arc42 + C4 + ADR + Mermaid，架构更新纳入 PR）；社区 skill 封装：<a class="ext" href="https://github.com/gauravs19/enterprise-architecture-skill">enterprise-architecture-skill</a>、<a class="ext" href="https://github.com/MSiccDev/arc42-toolkit">arc42-toolkit</a>。</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="text-lg font-semibold text-zinc-800 mt-6 mb-3">企业一手实战参照（发布与运维段主要在这里）</h3>
+      <ul class="list-disc pl-5 space-y-2 text-[.9rem] leading-relaxed">
+        <li><strong>Spotify</strong>（三篇一手工程博客）：模型无关内部 CLI 包装 agent，复用既有仓库定位/PR/评审/合并/日志控制平面，已产出 1500+ PR（<a class="ext" href="https://engineering.atspotify.com/2025/11/spotifys-background-coding-agent-part-1">Part 1</a>）；<strong>Stop hook 强制 formatter/lint/test，失败即禁止开 PR</strong>，外层 CI 仍保留（<a class="ext" href="https://engineering.atspotify.com/2025/12/feedback-loops-background-coding-agents-part-3">Part 3</a>）；2026 年 Honk 平台把 Agent SDK 跑在 Kubernetes，Fleetshift 管目标/调度/进度，Backstage/MCP 提供受信上下文（<a class="ext" href="https://engineering.atspotify.com/2026/6/code-with-claude-coding-is-no-longer-the-constraint">Code With Claude</a>）。</li>
+        <li><strong>Intercom</strong>：AI 审批 PR 的安全路径——受控试点 → <strong>按变更风险分级限定自动批准范围</strong> → 发布者保留生产监控与回滚责任（<a class="ext" href="https://www.intercom.com/blog/ai-is-approving-our-pull-requests-heres-how-we-made-it-safe/">博客</a>，2026-07）。</li>
+        <li><strong>Anthropic 自身</strong>（<a class="ext" href="https://claude.com/blog/how-anthropic-secures-its-ai-native-software-development-lifecycle">Securing AI-native SDLC</a>，2026-07-21）：Plan/Build/CI/Deploy/Monitor/Governance 全段——风险分级、多 agent 窄职责评审、shadow mode 试运行、SIEM、生产变更人工批准；内部十余团队实践见<a class="ext" href="https://claude.com/blog/how-anthropic-teams-use-claude-code">早前博客</a>。</li>
+      </ul>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="matrix" class="text-xl font-bold text-zinc-900 mb-3">方案对比矩阵</h2>
+      <div class="overflow-x-auto">
+        <table class="tbl w-full">
+          <thead><tr><th>方案</th><th>SDLC 覆盖</th><th>企业成熟度</th><th>目录结构</th><th>流程编排</th><th>社区活跃</th><th>综合</th></tr></thead>
+          <tbody>
+            <tr><td><strong>spec-kit</strong></td><td>3（需求→实现，无发布运维）</td><td>4（constitution 治理+模板定制+工具无关）</td><td>5 ✓（.specify/ 清晰内聚）</td><td>5 ✓（命令链最完整；显式 gate 为 review-spec/review-plan 两处+交互式命令边界人在环）</td><td>5 ✓（124.6k★，GitHub 官方）</td><td><strong>4.4</strong></td></tr>
+            <tr><td><strong>BMAD v6</strong></td><td>4 ✓（分析→QA 最宽，缺发布运维控制平面）</td><td>3（plugin 分发有，权限审计弱）</td><td>4（编号阶段目录清晰但庞大）</td><td>4（角色 agent+readiness 门禁）</td><td>4（51.3k★活跃）</td><td>3.8</td></tr>
+            <tr><td><strong>OpenSpec</strong></td><td>3（需求→实现）</td><td>3</td><td>4（delta specs+archive 真相管理）</td><td>4（brownfield 流转设计好）</td><td>3（活跃但体量小）</td><td>3.4</td></tr>
+            <tr><td><strong>Superpowers</strong></td><td>2（仅开发纪律段）</td><td>3</td><td>4</td><td>3</td><td>4</td><td>3.2</td></tr>
+            <tr><td><strong>ccpm</strong></td><td>2（PM 段）</td><td>3（Issues 审计轨迹是亮点）</td><td>3</td><td>4（人审+worktree 并行）</td><td>3（2026-03 后渐缓）</td><td>3.0</td></tr>
+            <tr><td><strong>ruflo</strong></td><td>3（自称广，未经独立验证）</td><td>2（企业声明自证，双 lens 均存疑）</td><td>2（功能面过大）</td><td>3</td><td>4（66.5k★）</td><td>2.8</td></tr>
+            <tr><td><strong>SuperClaude</strong></td><td>2</td><td>2</td><td>3</td><td>2</td><td>3</td><td>2.4</td></tr>
+            <tr class="bg-teal-50/60"><td><strong>自建组合（推荐）</strong></td><td>5 ✓（四层架构补齐发布运维，设计目标）</td><td>?（控制平面原生设计是<strong>设计上限</strong>，成熟度须经试点验证后再评）</td><td>4</td><td>4</td><td>?（复用生态组件，继承其社区）</td><td><strong>4.3</strong>（仅按可评三维均值）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-zinc-500 mt-2">✓ 该维度最优（可并列）　? 数据不足不填空分。打分依据见各单元格括号注。</p>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="conflicts" class="text-xl font-bold text-zinc-900 mb-3">冲突分析（ACH-lite）</h2>
+      <div class="overflow-x-auto">
+        <table class="tbl w-full">
+          <thead><tr><th class="w-8">#</th><th>分歧</th><th>处理结果</th><th class="w-28">置信度</th></tr></thead>
+          <tbody>
+            <tr><td>C1</td><td>BMAD 自称覆盖全 SDLC vs 异构 lens 指出其不承担发布/运维控制平面</td><td><strong>方法论覆盖 ≠ 控制平面覆盖</strong>。BMAD 的"覆盖"是文档与角色层面的；权限、审计、发布管控需企业平台自建。两说并存不矛盾</td><td><span class="pill pill-ok">高（3 方独立）</span></td></tr>
+            <tr><td>C2</td><td>Gemini lens 报 <code>CLAUDE_AGENT_TEAMS=true</code> vs 官方文档</td><td><strong>REFUTED 并修正</strong>：正确为 <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>，仍 experimental（补搜实查官方文档）。日本博客细节有误，Agent Teams 存在性本身双源证实</td><td><span class="pill pill-ok">高</span></td></tr>
+            <tr><td>C3</td><td>commands 是否仍是一等公民</td><td><strong>已并入 skills</strong>（官方 docs + CHANGELOG 双源）。旧目录兼容，新平台一律用 skills</td><td><span class="pill pill-ok">高</span></td></tr>
+            <tr><td>C4</td><td>ruflo 企业成熟度</td><td>GPT 族与 Claude 族<strong>独立</strong>给出同一保留意见：需 PoC，不采信自我声明</td><td><span class="pill pill-warn">中高</span></td></tr>
+            <tr><td>C5</td><td>Claude 专属结构 vs 工具无关真相层</td><td>非矛盾而是<strong>设计取舍</strong>：GPT 族独有的"四层结构"主张（真相放 docs/specs/AGENTS.md，.claude/ 仅适配）有 LF 中立治理与 wshobson/agents 多 harness 实践佐证，采纳为推荐（管理供应商锁定风险）</td><td><span class="pill pill-warn">中高</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="recommendation" class="text-xl font-bold text-zinc-900 mb-4">推荐</h2>
+      <div class="bg-teal-50 border border-teal-200 rounded-lg p-5 mb-5 text-[.92rem] leading-relaxed space-y-3">
+        <p><strong class="text-teal-900">结论</strong>：不选任何单一现成框架整套照搬；采用<strong>"四层平台架构 + 两视图流程（6 段治理底图 × 产物状态机）"自建组合</strong>——外层治理视图用 6 段端到端底图（战略/立项→产品发现→定义/设计→构建与交付→运营/演进→退役，见配套调研《企业级软件开发端到端阶段划分-完整报告》）；执行视图借 spec-kit 的产物链与人审门禁做骨架，并向两端各延一段（发现端 PR-FAQ 立项工件、收尾端退役评审）；官方 plugin marketplace 做团队分发，hooks 做本地确定性检查，企业控制平面（managed settings/CI/审计/网关）补齐发布与运维段。</p>
+        <p><strong class="text-teal-900">理由</strong>：(1) "没有单一方案覆盖企业完整 SDLC"是本次调研三方独立交叉证实的最强结论；(2) 现成框架的价值集中在流程方法论与模板，而企业级的差异化恰在它们都不做的控制平面；(3) 官方核心原语已具备（skills/agents/hooks/plugins/permissions 五件套定型），<strong>但接口仍在快速演进</strong>（如 <a class="ext" href="https://github.com/anthropics/claude-code/releases/tag/v2.1.218">v2.1.218</a> 调整 subagent 嵌套、skill 后台运行与 agent 命名行为），平台适配层要预留跟版升级维护成本；(4) 工具无关真相层让平台不被单一 vendor 锁死（AGENTS.md 已入 Linux Foundation 中立治理）。</p>
+        <p><strong class="text-teal-900">适用条件</strong>：适用于有多个业务仓库、需要治理与审计的团队/企业环境；个人或 2-3 人小团队直接用 spec-kit + Superpowers 即可，不必自建平台（但退役与运维段照样要有，哪怕各只有一页 checklist）。若已重仓 BMAD 方法论，可保留其角色/文档层、仅替换控制平面。强合规域（医疗/汽车/金融）把门禁密度调到硬 gate 档、V 模型式配对验证嵌在"定义/设计→构建"段内。实验特性（Agent Teams / Dynamic Workflows / Managed Agents）GA 后应重新评估第 3、4 层实现选型。流程骨架本身的完整选型证据见配套调研《企业级软件开发端到端阶段划分-完整报告》（同目录）。</p>
+        <p><strong class="text-teal-900">置信度</strong>：<span class="pill pill-ok">高</span>（基于 30+ 独立来源、四路异构搜索、6 条 single-source 声明逐条补搜核实、异构终审辩论收敛）</p>
+      </div>
+
+      <h3 id="arch" class="text-lg font-semibold text-zinc-800 mb-3">架构设计（四层平台架构）</h3>
+      <div class="bg-white rounded-lg border border-zinc-200 p-4 mb-4 overflow-x-auto">
+<pre class="mermaid">
+flowchart TB
+    subgraph L1["L1 工具无关真相层（Source of Truth）"]
+        A1["docs/ 架构文档<br/>C4 · ADR · Architecture Spine"]
+        A2["specs/ 产物状态机工作区<br/>PRD · spec · plan · tasks"]
+        A3["AGENTS.md + constitution.md<br/>工程宪法（LF 中立标准）"]
+    end
+    subgraph L2["L2 Claude 适配层（.claude/）"]
+        B1["CLAUDE.md &lt;200行 @import"]
+        B2["skills/ 能力单元"]
+        B3["agents/ 角色 subagent"]
+        B4["hooks + rules/ 本地确定性检查"]
+    end
+    subgraph L3["L3 能力分发层"]
+        C1["内部 plugin marketplace<br/>版本化 · 白名单管控"]
+    end
+    subgraph L4["L4 企业控制平面"]
+        D1["managed settings（不可覆盖）"]
+        D2["CI：claude -p headless + GitHub Actions"]
+        D3["LLM Gateway：认证/限流/用量"]
+        D4["OTel → SIEM 审计"]
+    end
+    L1 --> L2 --> L3
+    L4 -.管控.-> L2
+    L4 -.管控.-> L3
+</pre>
+      </div>
+      <ul class="list-disc pl-5 space-y-2 text-[.9rem] leading-relaxed mb-6">
+        <li><strong>L1 真相层</strong>：需求、规格、架构决策、流程定义全部放工具无关的 markdown（docs/ + specs/ + AGENTS.md），<strong><code>.claude/</code> 里绝不放业务真相</strong>——GPT 族 lens 独有主张，经 LF AGENTS.md 中立治理与 wshobson 多 harness 实践佐证。这保证明天换/加 Codex、Gemini CLI，平台不用重写。</li>
+        <li><strong>L2 适配层</strong>：<code>.claude/</code> 只做"把真相接入 Claude"的薄适配：CLAUDE.md 精简（官方建议 &lt;200 行）用 <code>@import</code> 指向 L1；skills 承载按需知识（渐进式披露）；agents 定义评审员/架构师等隔离角色；hooks 实现本地确定性检查。</li>
+        <li><strong>L3 分发层</strong>：把 L2 的能力打包成 plugin，经<strong>内部 marketplace</strong> 版本化分发到所有仓库/成员——团队 settings 用 <code>extraKnownMarketplaces</code>+<code>enabledPlugins</code> 自动装配，避免"每个仓库拷一份配置"的腐化。</li>
+        <li><strong>L4 控制平面</strong>：managed settings 强制权限边界（本地不可覆盖）+ <code>strictKnownMarketplaces</code> 白名单 + sandbox；CI 双环（内环 skill 评审、外环 GitHub Actions）；LLM gateway 集中认证/限流/计费（官方已有自托管 <a class="ext" href="https://code.claude.com/docs/en/claude-apps-gateway">Claude apps gateway</a>：SSO 登录、按组分配模型、OTLP 遥测，不必从零自研）；OTel 事件进 SIEM 满足审计。发布/运维段的门禁全部在这层，<strong>不交给开发 agent 的身份</strong>（Spotify/Anthropic 实践）。平台成效<strong>按流动而非阶段度量</strong>：以 <a class="ext" href="https://dora.dev/guides/dora-metrics/">DORA 五指标</a>（lead time / 部署频率 / 失败部署恢复时间 / 变更失败率 / 部署返工率）做仪表盘——速度与稳定不是取舍，精英团队五项全优。</li>
+      </ul>
+
+      <h3 id="dirs" class="text-lg font-semibold text-zinc-800 mb-3">目录结构与文件内容设计</h3>
+      <p class="text-sm font-semibold text-zinc-600 mb-2">业务仓库模板（每个项目仓库）：</p>
+<pre class="tree mb-4">repo-root/
+├── AGENTS.md                     # 工具无关 agent 入口（构建/测试命令、结构导览）——非 Claude 工具也读
+├── CLAUDE.md                     # &lt;200 行；只放常驻规则；@import docs/constitution.md 等
+├── .claude/
+│   ├── settings.json             # 团队共享：permissions、hooks 注册、enabledPlugins、extraKnownMarketplaces
+│   ├── settings.local.json       # 个人覆盖（gitignore）
+│   ├── rules/                    # path-scoped 规则（如 "src/payments/** 改动必须双人审"）
+│   ├── skills/                   # 能力单元（commands 已并入 skills）
+│   │   ├── e2e-discovery/SKILL.md       # 立项前发现：PR-FAQ/一页纸（Amazon Working Backwards）
+│   │   ├── e2e-requirements/SKILL.md    # 需求访谈→PRD
+│   │   ├── e2e-design/SKILL.md          # spec→plan+ADR
+│   │   ├── e2e-implement/SKILL.md       # tasks→TDD 实现
+│   │   ├── e2e-review/SKILL.md          # 内环评审（对抗式）
+│   │   ├── e2e-release/SKILL.md         # 发布清单（PRR）→runbook
+│   │   └── e2e-retire/SKILL.md          # 退役：下线计划/数据迁移/支持期义务
+│   ├── agents/
+│   │   ├── architect.md          # 架构评审 subagent（只读工具集）
+│   │   ├── reviewer.md           # 代码评审（对抗视角）
+│   │   ├── qa.md                 # 测试策略与用例生成
+│   │   └── security.md           # 安全审查
+│   └── hooks/                    # 本地确定性检查脚本
+│       ├── post-edit-lint.sh     # PostToolUse：改完即 lint
+│       └── stop-verify.sh        # Stop：测试不过不许收工（Spotify 模式）
+├── docs/
+│   ├── constitution.md           # 工程宪法（借 spec-kit constitution 思想：不可妥协的工程原则）
+│   ├── architecture/
+│   │   ├── spine.md              # 精简架构主干（BMAD PR#2467 教训：大 architecture.md 会腐化）
+│   │   ├── c4/                   # C4 图 diagrams-as-code（mermaid，随 PR 更新）
+│   │   └── adr/ADR-NNN-*.md      # 架构决策记录（不可变，只追加）
+│   ├── process/
+│   │   ├── e2e-stages.md        # 6 段治理底图 + 每段入口/产物/出口条件（两视图映射）
+│   │   ├── gates.md              # 六门禁清单：谁审、审什么、怎么算过（证据触发）
+│   │   ├── risk-tiers.md         # 风险分级（Intercom 模式；决定门禁密度）
+│   │   ├── prr.md                # 生产就绪评审清单（Google SRE PRR，门禁④输入）
+│   │   └── deprecation.md        # 退役政策：advisory/compulsory + EU CRA 支持期义务
+│   └── runbooks/                 # 运维手册（发布/回滚/事故，AI 可读可执行）
+├── specs/                        # 产物状态机工作区（活动 feature）
+│   └── &lt;feature&gt;/
+│       ├── prfaq.md              # 阶段0产物（立项一页纸，门禁⓪输入）
+│       ├── prd.md                # 阶段1产物
+│       ├── spec.md               # 阶段2产物（验收标准 Given/When/Then）
+│       ├── plan.md               # 阶段3产物（技术方案，链接 ADR）
+│       ├── tasks.md              # 阶段4产物（可执行任务清单，含验证方式）
+│       └── archive 后并回 docs/  # OpenSpec 模式：完成即归档合并为当前真相
+├── .mcp.json                     # 中央管控的 MCP 服务配置（入库，受白名单约束）
+└── .github/workflows/
+    ├── claude-review.yml         # 外环：claude-code-action PR 自动评审
+    └── quality-gates.yml         # 外环：lint/test/security 扫描硬门禁</pre>
+      <p class="text-sm font-semibold text-zinc-600 mb-2">平台仓库（一个，组织级）：</p>
+<pre class="tree mb-4">platform-repo/
+├── marketplace/.claude-plugin/marketplace.json   # 内部 plugin 市场目录
+├── plugins/
+│   ├── e2e-core/               # 上述 skills/agents/hooks 打包（版本化）
+│   │   ├── .claude-plugin/plugin.json
+│   │   ├── skills/  agents/  hooks/
+│   │   └── .mcp.json
+│   ├── org-standards/           # 组织编码/文档标准（Agent OS 思想：标准先注入）
+│   └── arch-docs/               # C4/arc42/ADR 生成 skill
+├── managed-settings/            # 下发到各端的 managed-settings.json（MDM/GPO）
+├── templates/                   # 新仓库脚手架（含上述 repo 模板）
+└── docs/                        # 平台自身的架构与流程文档</pre>
+      <p class="text-sm font-semibold text-zinc-600 mb-2">关键设计取舍（均有出处）：</p>
+      <ul class="list-disc pl-5 space-y-2 text-[.9rem] leading-relaxed mb-6">
+        <li><strong>specs/ 放仓库根而非 <code>.claude/specs/</code></strong>：产物是真相不是工具配置（C5 结论）；Pimzino 把产物放 <code>.claude/</code> 下的先例已停更。</li>
+        <li><strong>CLAUDE.md 只做索引</strong>：常驻规则塞多了会被淹没（官方 best-practices 明示）；领域知识放 skills 按需加载。</li>
+        <li><strong>强制层级分三档，别把 hooks 当安全边界</strong>：CLAUDE.md 是建议、模型可能忽略；hooks 是代码、匹配即执行——适合承担本地快速确定性检查（lint/测试/格式化，Spotify 模式），但官方明示其过滤 best-effort、<a class="ext" href="https://code.claude.com/docs/en/hooks">硬性 allow/deny 应依赖 permission system</a>；<strong>真正不可绕过的门禁在服务端：受保护分支 + CI required checks + 发布审批 + managed settings</strong>（本地不可覆盖）。</li>
+        <li><strong>每个 skill/agent 单一职责</strong>：Anthropic 内部经验——多 agent 窄职责评审优于一个大而全评审员。</li>
+      </ul>
+
+      <h3 id="process" class="text-lg font-semibold text-zinc-800 mb-3">流程编排与门禁设计（两视图：6 段治理底图 × 产物状态机）</h3>
+      <p class="text-[.9rem] leading-relaxed mb-3"><strong>两视图原则</strong>（并入配套调研核心结论）：ISO/IEC/IEEE 12207:2026 把"阶段"与"过程"分离——阶段是<strong>治理视图</strong>（对齐预算/评审/责任），过程是<strong>执行视图</strong>（每天实际做的事），过程可在任何阶段并发/迭代发生（<a class="ext" href="https://www.iso.org/standard/90219.html">ISO 标准页</a>，iso.org 反爬 403，配套调研经官方样张核实）。本平台照此设两层：</p>
+      <div class="overflow-x-auto mb-4">
+        <table class="tbl w-full">
+          <thead><tr><th>治理视图（6 段底图）</th><th>执行视图（产物状态机）</th><th>平台落点</th></tr></thead>
+          <tbody>
+            <tr><td>战略/立项（投资决策）</td><td>PR-FAQ / 一页纸立项工件 → 门禁⓪</td><td><code>specs/&lt;feature&gt;/prfaq.md</code> + e2e-discovery skill</td></tr>
+            <tr><td>产品发现（验证问题）</td><td>需求访谈 → PRD → 门禁①</td><td>e2e-requirements skill</td></tr>
+            <tr><td>定义/设计（验证方案）</td><td>spec → plan + ADR → 门禁②</td><td>e2e-design skill + docs/architecture/</td></tr>
+            <tr><td>构建与交付（内层迭代循环）</td><td>tasks → code+tests → PR（门禁③）→ release（门禁④）</td><td>e2e-implement/review/release skills + hooks + CI 双环</td></tr>
+            <tr><td>运营/演进（SRE/持续改进）</td><td>runbook、监控、事故回流</td><td>docs/runbooks/ + DORA 五指标度量</td></tr>
+            <tr><td>退役（计划内下线）</td><td>退役评审（门禁⑤）→ deprecation 计划</td><td>docs/process/deprecation.md + e2e-retire skill</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[.9rem] leading-relaxed mb-4">v1 状态机从 PRD 起步、到运维止——正是配套调研指出"教科书 SDLC 最容易缺的两端"。v2 据此补齐：<strong>发现端</strong>借 Amazon <a class="ext" href="https://www.aboutamazon.com/news/workplace/an-insider-look-at-amazons-culture-and-processes">Working Backwards / PR-FAQ</a>（写代码前先写"新闻稿+FAQ"，多数想法在此被过滤掉不建）与 Shape Up 的 <a class="ext" href="https://basecamp.com/shapeup/0.3-chapter-01">betting</a>（下注即轻量门禁）；<strong>收尾端</strong>借 Google 把 <a class="ext" href="https://abseil.io/resources/swe-book/html/ch15.html">deprecation 当计划内阶段</a>（"code is a liability"，分 advisory/compulsory 两型），且 <a class="ext" href="https://eur-lex.europa.eu/eli/reg/2024/2847/oj/eng">EU Cyber Resilience Act</a> 已把支持期与 EOL <strong>法定化</strong>（支持期内须持续处理漏洞，一般不少于 5 年）——面向欧盟市场的产品，运维与退役不能留在"项目外"。</p>
+      <div class="bg-white rounded-lg border border-zinc-200 p-4 mb-4 overflow-x-auto">
+<pre class="mermaid">
+flowchart LR
+    DISC["PR-FAQ<br/>(立项/发现)"] -->|"人审门禁⓪<br/>立项/下注"| PRD["PRD<br/>(需求)"]
+    PRD -->|"人审门禁①<br/>需求确认"| SPEC["spec.md<br/>(规格+验收标准)"]
+    SPEC -->|"人审门禁②<br/>架构评审+ADR"| PLAN["plan.md + ADR"]
+    PLAN --> TASKS["tasks.md<br/>(任务分解)"]
+    TASKS --> CODE["code + tests<br/>(TDD 实现)"]
+    CODE -->|"hooks 本地阻断 lint/test<br/>+ CI required checks 兜底"| PR["Pull Request"]
+    PR -->|"人审门禁③<br/>双环评审+风险分级"| REL["Release"]
+    REL -->|"人审门禁④<br/>生产放行"| OPS["运维<br/>(runbook/监控/DORA)"]
+    OPS -->|"人审门禁⑤<br/>退役评审"| RET["退役<br/>(deprecation 计划)"]
+    OPS -.->|"事故→新需求"| PRD
+    CODE -.->|"评审不过<br/>循环到正确"| TASKS
+</pre>
+      </div>
+      <p class="text-sm font-semibold text-zinc-600 mb-2">六个人审门禁（人介入边界，显式定义在 <code>docs/process/gates.md</code>。<strong>密度按风险与合规强度配置</strong>——强合规域取 NASA <a class="ext" href="https://nodis3.gsfc.nasa.gov/displayDir.cfm?Internal_ID=N_PR_7123_001D_&page_name=Chapter5">NPR 7123.1D</a> 式硬 gate，产品域缩成 Amazon 式一页纸工件；<strong>由证据/事件触发，而非日期</strong>）：</p>
+      <div class="overflow-x-auto mb-4">
+        <table class="tbl w-full">
+          <thead><tr><th>门禁</th><th>审什么</th><th>谁审</th><th>依据</th></tr></thead>
+          <tbody>
+            <tr><td>⓪ 立项/下注</td><td>PR-FAQ/一页纸：问题值不值得做、appetite 多大</td><td>产品/业务负责人</td><td>Amazon Working Backwards；Shape Up betting</td></tr>
+            <tr><td>① 需求确认</td><td>PRD 完整性、优先级、验收标准可测</td><td>产品负责人</td><td>spec-kit 阶段 checkpoint</td></tr>
+            <tr><td>② 架构评审</td><td>plan 与 constitution/spine 一致性；重大决策落 ADR</td><td>架构师（+architect subagent 预审）</td><td>BMAD readiness gate；Anthropic 风险分级</td></tr>
+            <tr><td>③ 合并批准</td><td>内环 skill 评审 + 外环 CI 双绿；按风险分级决定自动/人工</td><td>按 risk-tiers.md 路由</td><td>Intercom 风险分级；OneRedOak 双环</td></tr>
+            <tr><td>④ 生产放行</td><td>发布清单（PRR 生产就绪评审）、回滚预案、shadow mode 结果</td><td>发布负责人（保留监控回滚责任）</td><td>Anthropic shadow mode；Spotify 不给 agent 生产身份；<a class="ext" href="https://sre.google/sre-book/evolving-sre-engagement-model/">Google SRE PRR</a>/<a class="ext" href="https://sre.google/sre-book/reliable-product-launches/">LCE</a></td></tr>
+            <tr><td>⑤ 退役评审</td><td>下线计划、数据迁移、用户通知、支持期义务</td><td>架构师 + 产品负责人</td><td><a class="ext" href="https://abseil.io/resources/swe-book/html/ch15.html">Google deprecation</a>（advisory/compulsory）；<a class="ext" href="https://eur-lex.europa.eu/eli/reg/2024/2847/oj/eng">EU CRA</a> 法定 EOL</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[.9rem] leading-relaxed mb-6"><strong>四级验证强度</strong>（从软到硬）：CLAUDE.md 建议 → LLM 评审（reviewer/security subagent、LLM-as-judge rubric，借 closedloop critic-gates 的"文件模式→指派评审员"路由）→ <strong>hooks 本地确定性检查</strong>（lint、测试；Stop hook 防"没测完就收工"——每次都跑但属客户端，<a class="ext" href="https://code.claude.com/docs/en/hooks">官方明示硬策略要靠 permission system</a>）→ <strong>服务端不可绕过门禁</strong>（受保护分支、CI required checks、发布审批、managed settings/permissions）。<strong>能用可执行验证的绝不用"我觉得对了"；安全边界只认服务端强制</strong>。</p>
+      <p class="text-[.9rem] leading-relaxed mb-6"><strong>为什么要"加厚验证"而不是随 AI 生成一起变薄</strong>（配套调研的 AI 时代证据）：AI 让个体生成变快、验证变慢——万人级遥测显示高 AI 采用团队 PR 数 +98% 但 review 耗时 +91%（<a class="ext" href="https://www.faros.ai/blog/ai-software-engineering">Faros.ai</a>；<a class="ext" href="https://arxiv.org/abs/2605.01160">arXiv:2605.01160</a> 称之为"生产力-可靠性悖论"；数字出自单一遥测厂商，落地时以本组织实测为准）；METR RCT 测得资深开发者用早 2025 期工具反而<strong>慢 19%</strong> 却自估快 20%（<a class="ext" href="https://arxiv.org/abs/2507.09089">arXiv:2507.09089</a>，已标注为历史性结果）——所以<strong>平台按"验证是瓶颈"设计，不预设 AI 提速</strong>。人审门禁放在规划/架构决策点也有实证：Anthropic 对约 40 万 Claude Code 会话的分析显示，人拥有约 70% 规划决策、agent 承担约 80% 执行决策，且领域专长而非编程速度决定成败（<a class="ext" href="https://www.anthropic.com/research/claude-code-expertise">研究</a>）。</p>
+
+      <h3 id="docs-design" class="text-lg font-semibold text-zinc-800 mb-3">架构文档与流程文档设计</h3>
+      <p class="text-sm font-semibold text-zinc-600 mb-2">架构文档（放 <code>docs/architecture/</code>，架构即代码，随 PR 演进）：</p>
+      <div class="overflow-x-auto mb-4">
+        <table class="tbl w-full">
+          <thead><tr><th>文档</th><th>形态</th><th>更新时机</th><th>出处</th></tr></thead>
+          <tbody>
+            <tr><td>Architecture Spine（<code>spine.md</code>）</td><td>精简主干：系统边界、核心组件、关键约束，≤300 行</td><td>架构变更 PR 同步改</td><td>BMAD PR#2467（大文件腐化教训）</td></tr>
+            <tr><td>C4 图（<code>c4/</code>）</td><td>Mermaid/Structurizr diagrams-as-code，Context/Container 两层起步</td><td>随 PR；CI 校验语法</td><td>Spryker 实践；enterprise-architecture-skill</td></tr>
+            <tr><td>ADR（<code>adr/</code>）</td><td>一事一文，状态机：proposed→accepted→superseded，不可变只追加</td><td>门禁②产出</td><td>行业标准 + spec-kit plan 关联</td></tr>
+            <tr><td>深度文档</td><td>需要 arc42 全套时用 arc42-toolkit 生成，默认从简</td><td>按需</td><td>arc42-toolkit</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-sm font-semibold text-zinc-600 mb-2">流程文档（放 <code>docs/process/</code>，是平台的"法律"）：</p>
+      <ul class="list-disc pl-5 space-y-1.5 text-[.9rem] leading-relaxed mb-4">
+        <li><code>e2e-stages.md</code>：6 段治理底图 + 每段的<strong>入口条件、产物、出口条件</strong>（两视图映射的文字定义，与上表/上图一致）</li>
+        <li><code>gates.md</code>：六门禁的检查清单与责任人（RACI），门禁由证据/事件触发而非日期</li>
+        <li><code>risk-tiers.md</code>：变更风险分级表（哪些路径/文件属高风险 → 强制人审；低风险 → 自动通过），既是门禁③的路由规则，也决定整体门禁密度（NASA 硬 gate ↔ Amazon 一页纸谱系上取哪一档）</li>
+        <li><code>prr.md</code>：生产就绪评审清单（门禁④输入，Google SRE 模式）</li>
+        <li><code>deprecation.md</code>：退役政策（advisory/compulsory 两型；面向欧盟市场时对齐 EU CRA 支持期义务）</li>
+        <li><code>constitution.md</code>（在 docs/ 根）：不可妥协原则（如"无测试不合并""生产变更必须人批"），被 CLAUDE.md @import，全 skill 共享</li>
+      </ul>
+      <p class="text-sm font-semibold text-zinc-600 mb-2">AI 上下文文档分层（官方四层 + 本设计）：</p>
+<pre class="tree mb-6">managed policy CLAUDE.md（组织强制，IT 下发）
+  → user ~/.claude/CLAUDE.md（个人习惯）
+    → project CLAUDE.md（&lt;200 行，@import docs/constitution.md）
+      → .claude/rules/*（path-scoped 细则）
+        → skills（按需加载的深知识）</pre>
+
+      <h3 id="roadmap" class="text-lg font-semibold text-zinc-800 mb-3">分阶段落地路线</h3>
+      <ol class="list-decimal pl-5 space-y-2 text-[.9rem] leading-relaxed">
+        <li><strong>第 1 步（1 个仓库试点）</strong>：建 repo 模板目录树；写 constitution.md + 核心 e2e-* skills（七个里先做 requirements/design/implement/review 四个起步，discovery/release/retire 随试点节奏补）+ 2 个门禁 hook；跑通 PR-FAQ→PR 全链。</li>
+        <li><strong>第 2 步（平台化）</strong>：抽成 plugin，建内部 marketplace；接 claude-code-action 外环 CI；risk-tiers 上线。</li>
+        <li><strong>第 3 步（治理）</strong>：managed settings 下发、OTel→SIEM、LLM gateway；运维段 runbook 化。</li>
+        <li><strong>第 4 步（规模化再评估）</strong>：Agent Teams / Dynamic Workflows / Managed Agents GA 后，评估用其替换自建编排；届时重估 ruflo 类 meta-harness 是否值得引入（先 PoC）。</li>
+      </ol>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="sources" class="text-xl font-bold text-zinc-900 mb-3">主要来源</h2>
+      <div class="bg-white rounded-lg border border-zinc-200 p-5 text-[.85rem] leading-relaxed space-y-3">
+        <p><strong>官方文档/博客（primary，置信度高）</strong>：<a class="ext" href="https://code.claude.com/docs/en/best-practices">best-practices</a> · <a class="ext" href="https://code.claude.com/docs/en/plugins">plugins</a> · <a class="ext" href="https://code.claude.com/docs/en/plugin-marketplaces">plugin-marketplaces</a> · <a class="ext" href="https://code.claude.com/docs/en/memory">memory</a> · <a class="ext" href="https://code.claude.com/docs/en/skills">skills</a> · <a class="ext" href="https://code.claude.com/docs/en/hooks-guide">hooks-guide</a> · <a class="ext" href="https://code.claude.com/docs/en/hooks">hooks 参考</a> · <a class="ext" href="https://code.claude.com/docs/en/admin-setup">admin-setup</a> · <a class="ext" href="https://code.claude.com/docs/en/monitoring-usage">monitoring-usage</a> · <a class="ext" href="https://code.claude.com/docs/en/github-actions">github-actions</a> · <a class="ext" href="https://code.claude.com/docs/en/bedrock-vertex">bedrock-vertex</a> · <a class="ext" href="https://code.claude.com/docs/en/agent-teams">agent-teams</a> · <a class="ext" href="https://code.claude.com/docs/en/whats-new/2026-w22">whats-new 2026-w22</a> · <a class="ext" href="https://code.claude.com/docs/en/agent-sdk/">agent-sdk</a> · <a class="ext" href="https://code.claude.com/docs/en/agent-sdk/migration-guide">SDK migration</a> · <a class="ext" href="https://code.claude.com/docs/en/claude-apps-gateway">claude-apps-gateway</a> · <a class="ext" href="https://claude.com/blog/building-agents-with-the-claude-agent-sdk">Building agents with Agent SDK</a> · <a class="ext" href="https://claude.com/blog/how-anthropic-teams-use-claude-code">How Anthropic teams use Claude Code</a> · <a class="ext" href="https://claude.com/blog/how-anthropic-secures-its-ai-native-software-development-lifecycle">Securing AI-native SDLC</a> · <a class="ext" href="https://claude.com/blog/claude-managed-agents">Managed Agents 公测</a> · <a class="ext" href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills">Agent Skills 工程博客</a> · <a class="ext" href="https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md">claude-code CHANGELOG</a> · <a class="ext" href="https://github.com/anthropics/claude-code/releases/tag/v2.1.218">v2.1.218 release</a></p>
+        <p><strong>开源仓库（primary）</strong>：<a class="ext" href="https://github.com/github/spec-kit">spec-kit</a>（+<a class="ext" href="https://github.com/github/spec-kit/blob/main/docs/reference/workflows.md">workflow 参考</a>、<a class="ext" href="https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/">发布文</a>） · <a class="ext" href="https://github.com/bmad-code-org/BMAD-METHOD">BMAD-METHOD</a>（+<a class="ext" href="https://docs.bmad-method.org">docs</a>、<a class="ext" href="https://github.com/bmad-code-org/BMAD-METHOD/pull/2467">PR#2467</a>） · <a class="ext" href="https://github.com/Fission-AI/OpenSpec">OpenSpec</a> · <a class="ext" href="https://github.com/automazeio/ccpm">ccpm</a> · <a class="ext" href="https://github.com/obra/superpowers">Superpowers</a> · <a class="ext" href="https://github.com/buildermethods/agent-os">Agent OS</a> · <a class="ext" href="https://github.com/Pimzino/claude-code-spec-workflow">Pimzino spec-workflow</a>（已停更） · <a class="ext" href="https://github.com/closedloop-ai/claude-plugins">closedloop-ai/claude-plugins</a> · <a class="ext" href="https://github.com/OneRedOak/claude-code-workflows">OneRedOak/claude-code-workflows</a> · <a class="ext" href="https://github.com/ruvnet/ruflo">ruflo</a> · <a class="ext" href="https://github.com/SuperClaude-Org/SuperClaude_Framework">SuperClaude</a> · <a class="ext" href="https://github.com/wshobson/agents">wshobson/agents</a> · <a class="ext" href="https://github.com/anthropics/claude-code-action">claude-code-action</a> · <a class="ext" href="https://github.com/hesreallyhim/awesome-claude-code">awesome-claude-code</a></p>
+        <p><strong>企业一手实践（primary blog）</strong>：Spotify <a class="ext" href="https://engineering.atspotify.com/2025/11/spotifys-background-coding-agent-part-1">P1</a>/<a class="ext" href="https://engineering.atspotify.com/2025/12/feedback-loops-background-coding-agents-part-3">P3</a>/<a class="ext" href="https://engineering.atspotify.com/2026/6/code-with-claude-coding-is-no-longer-the-constraint">2026</a> · <a class="ext" href="https://www.intercom.com/blog/ai-is-approving-our-pull-requests-heres-how-we-made-it-safe/">Intercom</a></p>
+        <p><strong>标准与学术（primary/paper）</strong>：<a class="ext" href="https://agentskills.io/specification">agentskills.io spec</a> · <a class="ext" href="https://www.linuxfoundation.org/press/linux-foundation-announces-the-formation-of-the-agentic-ai-foundation">Linux Foundation AAIF</a> · <a class="ext" href="https://docs.spryker.com/docs/dg/dev/architecture/architecture-as-code">Spryker architecture-as-code</a> · <a class="ext" href="https://arxiv.org/abs/2604.04978">arXiv 2604.04978 权限压测</a> · <a class="ext" href="https://arxiv.org/abs/2512.10398">arXiv 2512.10398 Confucius</a> · <a class="ext" href="https://slsa.dev/spec/v1.0-rc2/threats">SLSA</a> · <a class="ext" href="https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-review">GitHub dependency review</a></p>
+        <p><strong>配套调研承接（v2 引入，阶段划分证据链，已经其独立 /survey 流程双层 Citation Health 核验，本报告抽查存活）</strong>：<a class="ext" href="https://www.iso.org/standard/90219.html">ISO/IEC/IEEE 12207:2026</a>（iso.org 反爬 403，经官方样张核实） · <a class="ext" href="https://dora.dev/guides/dora-metrics/">DORA 五指标</a> · <a class="ext" href="https://www.aboutamazon.com/news/workplace/an-insider-look-at-amazons-culture-and-processes">Amazon Working Backwards</a> · <a class="ext" href="https://basecamp.com/shapeup/0.3-chapter-01">Shape Up betting</a> · <a class="ext" href="https://sre.google/sre-book/evolving-sre-engagement-model/">Google SRE PRR</a> / <a class="ext" href="https://sre.google/sre-book/reliable-product-launches/">LCE</a> · <a class="ext" href="https://abseil.io/resources/swe-book/html/ch15.html">Google SWE book Deprecation</a> · <a class="ext" href="https://eur-lex.europa.eu/eli/reg/2024/2847/oj/eng">EU CRA</a> · <a class="ext" href="https://nodis3.gsfc.nasa.gov/displayDir.cfm?Internal_ID=N_PR_7123_001D_&page_name=Chapter5">NASA NPR 7123.1D</a> · <a class="ext" href="https://arxiv.org/abs/2101.08016">HELENA 混合方法实证</a> · <a class="ext" href="https://www.faros.ai/blog/ai-software-engineering">Faros.ai</a> / <a class="ext" href="https://arxiv.org/abs/2605.01160">arXiv:2605.01160</a> · <a class="ext" href="https://arxiv.org/abs/2507.09089">METR RCT</a> · <a class="ext" href="https://www.anthropic.com/research/claude-code-expertise">Anthropic Claude Code 会话研究</a>——完整证据链见《企业级软件开发端到端阶段划分-完整报告》（同目录）</p>
+        <p><strong>二手分析（secondary，置信度中）</strong>：<a class="ext" href="https://developersvoice.com/blog/ai/claude_code_2026_end_to_end_sdlc/">developersvoice 端到端 SDLC</a> · <a class="ext" href="https://generalanalysis.com/guides/claude-code-enterprise-security-deployment">generalanalysis 企业安全部署</a> · <a class="ext" href="https://www.ml6.eu/en/blog/inside-the-claude-agents-sdk-lessons-from-the-ai-engineer-summit">ml6.eu Agent SDK 经验</a> · <a class="ext" href="https://github.com/gauravs19/enterprise-architecture-skill">enterprise-architecture-skill</a> · <a class="ext" href="https://github.com/MSiccDev/arc42-toolkit">arc42-toolkit</a></p>
+      </div>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="risks" class="text-xl font-bold text-zinc-900 mb-3">待验证风险</h2>
+      <ul class="space-y-2.5 text-[.9rem] leading-relaxed">
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>权限 Tier 2 盲区</strong>（<a class="ext" href="https://arxiv.org/abs/2604.04978">arXiv 2604.04978</a>：项目内文件编辑默认豁免安全分类器，92.9% 假阴性）——运维状态/发布配置<strong>不要放项目可写目录</strong>；用 permissions deny 规则 + hooks 对敏感路径显式设防。落地时用探针实测验证。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>实验特性稳定性</strong>：Agent Teams（experimental）、Dynamic Workflows（research preview）可能 API 变动或撤回——平台核心不依赖，<code>docs/process/</code> 留升级评估点。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>spec-kit 模板定制成本</strong>：bundles/presets/extensions 覆盖链在组织级定制的实际工作量未经本组织验证——试点阶段实测。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>管控字段的版本依赖</strong>：<code>strictKnownMarketplaces</code>/<code>disableSideloadFlags</code>/managed settings 的可用性与 Claude Code 版本、订阅层级相关——按 <a class="ext" href="https://code.claude.com/docs/en/admin-setup">admin-setup</a> 现行文档核对自己的部署形态。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>ruflo 若未来引入</strong>：必须先独立 PoC，不采信项目自我声明（双异构 lens 一致保留意见）。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>SDK 迁移坑</strong>：自建服务用 Agent SDK 时注意 v0.1.0 起默认移除 CLI 系统提示词，需显式 <code>{ type: 'preset', preset: 'claude_code' }</code>（<a class="ext" href="https://code.claude.com/docs/en/agent-sdk/migration-guide">migration guide</a>）。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>核心接口演进节奏</strong>：Claude Code 发版频繁且有行为级变更（如 <a class="ext" href="https://github.com/anthropics/claude-code/releases/tag/v2.1.218">v2.1.218</a> 调整 subagent 嵌套/skill 后台运行/agent 命名）——L2/L3 层设"版本升级评估"例行项，plugin 锁版本发布。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>合规硬约束（面向欧盟市场时）</strong>：<a class="ext" href="https://eur-lex.europa.eu/eli/reg/2024/2847/oj/eng">EU Cyber Resilience Act</a> 要求数字产品支持期内持续处理漏洞（一般不少于 5 年）并管理 EOL——退役段与 runbook 不是可选项；按产品市场范围核对适用性并落进 <code>deprecation.md</code>。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>验证税数字的厂商依赖</strong>：PR +98%/review +91% 出自单一遥测厂商 Faros.ai（论文转引）——平台上线后用自己的 DORA 仪表实测 review 耗时变化，不照抄外部数字设阈值。</li>
+        <li class="bg-amber-50 border border-amber-200 rounded-lg p-4"><strong>供应链风险（plugin/workflow/skill）</strong>：第三方 plugin、下载的 spec-kit workflow、社区 skill 都是<strong>以用户权限执行的代码</strong>（spec-kit 官方明示 shell step 无 capability sandbox）——引入前人工审计；内部 marketplace 对 plugin 做<strong>版本/commit 锁定</strong>（<a class="ext" href="https://slsa.dev/spec/v1.0-rc2/threats">SLSA</a>）；监控上游 maintainer 活跃度（bus-factor）与 license 变更（<a class="ext" href="https://docs.github.com/en/code-security/concepts/supply-chain-security/dependency-review">GitHub dependency review</a>）；平台产物纳入 SBOM。</li>
+      </ul>
+    </section>
+
+    <section class="mb-10">
+      <h2 id="appendix" class="text-xl font-bold text-zinc-900 mb-3">附录 A：全量来源审计链与成功标准核算</h2>
+      <p class="text-sm text-zinc-500 mb-3">应异构终审（Round 1 建议①）补充：逐源列出发现方 lens / 日期 / 标签 / 质量 / 支撑章节，可复核并集规则执行情况与 Brief 成功标准。</p>
+      <h3 class="text-base font-semibold text-zinc-800 mb-2">A.1 成功标准核算（对照 Brief）</h3>
+      <div class="overflow-x-auto mb-5">
+        <table class="tbl w-full">
+          <thead><tr><th>标准</th><th>要求</th><th>实际</th><th>判定</th></tr></thead>
+          <tbody>
+            <tr><td>最少 source 数</td><td>≥8</td><td>正文引用 <strong>58</strong> 个去重 URL（另 6 个上报未采用，见 A.3）</td><td><span class="pill pill-ok">✅</span></td></tr>
+            <tr><td>近 12 月占比</td><td>≥30%</td><td>≈<strong>98%</strong>（58 中 57 个为 2025-08 后发布或"现行文档/活跃仓库"；唯一例外为 2025-07-24 的官方博客，超窗 6 天）</td><td><span class="pill pill-ok">✅</span></td></tr>
+            <tr><td>primary source 占比</td><td>≥40%</td><td>≈<strong>95%</strong>（官方文档/官方博客/源码仓库/一手工程博客/论文/标准 55 个；secondary 3 个）</td><td><span class="pill pill-ok">✅</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="mb-4 bg-white rounded-lg border border-zinc-200 p-4">
+        <summary class="font-semibold text-sm">A.2 正文引用来源清单（按类别，58 个）</summary>
+        <div class="overflow-x-auto mt-3">
+          <table class="tbl w-full">
+            <thead><tr><th>来源</th><th>发现方</th><th>日期</th><th>标签</th><th>质量</th><th>支撑章节</th></tr></thead>
+            <tbody>
+              <tr><td>code.claude.com 官方文档 ×17（best-practices / plugins / plugins-reference / plugin-marketplaces / memory / skills / hooks-guide / hooks / admin-setup / monitoring-usage / github-actions / bedrock-vertex / agent-teams / whats-new-2026-w22 / agent-sdk / migration-guide / claude-apps-gateway）</td><td>A+B+X1（各有交叉）；hooks 参考页与 apps-gateway 为 Phase 6/5.5 补入</td><td>现行 2026-07</td><td>official/primary</td><td>High</td><td>生态全景·官方原语；架构设计；风险</td></tr>
+              <tr><td>官方博客 ×5（Agent SDK / 内部团队用法 / 安全 SDLC / Managed Agents / Agent Skills）</td><td>A；安全 SDLC 与 Managed Agents 分别为 X1、X2 独有</td><td>2025-07-24 ~ 2026-07-21</td><td>official/primary</td><td>High</td><td>生态全景；企业实战；流程设计</td></tr>
+              <tr><td>anthropics 官方仓库 ×3（claude-code-action / claude-code CHANGELOG / v2.1.218 release）</td><td>A；后两者为补搜与 Phase 6 补入</td><td>2025-09 ~ 2026-07</td><td>official/primary</td><td>High</td><td>官方原语；风险</td></tr>
+              <tr><td>spec-kit 相关 ×3（仓库 / workflows.md 参考 / github.blog 发布文）</td><td>A+B+X1 交叉；workflows.md 为 Phase 6 reviewer 引入并实查</td><td>2025-09-02 ~ 2026-07-29</td><td>official/primary</td><td>High</td><td>盘点；矩阵；流程设计</td></tr>
+              <tr><td>社区仓库 ×16（BMAD 仓库+docs+PR#2467 / OpenSpec / ccpm / Superpowers / Agent OS / Pimzino / closedloop-ai / OneRedOak / ruflo / SuperClaude / wshobson / awesome-claude-code / enterprise-architecture-skill / arc42-toolkit）</td><td>B 为主，X1 交叉报 7 个（OpenSpec/Superpowers/wshobson/ruflo/BMAD-PR2467 等为 X1 独有或先报）</td><td>2025-09 ~ 2026-07-30</td><td>primary</td><td>High/Medium</td><td>盘点；矩阵；目录与文档设计</td></tr>
+              <tr><td>企业一手 ×4（Spotify P1/P3/2026 + Intercom）</td><td><strong>X1 独有</strong></td><td>2025-11 ~ 2026-07-14</td><td>primary/blog</td><td>High</td><td>企业实战；流程门禁设计</td></tr>
+              <tr><td>标准与学术 ×7（agentskills.io / LF-AAIF / Spryker / arXiv 2604.04978 / arXiv 2512.10398 / SLSA / GitHub dependency-review）</td><td>X1 报 3、<strong>X2 独有 2（两篇 arXiv）</strong>、Phase 6 补 2</td><td>2025-12 ~ 现行</td><td>primary/spec/paper</td><td>High</td><td>架构取舍；文档设计；风险</td></tr>
+              <tr><td>二手分析 ×3（developersvoice / generalanalysis / ml6.eu）</td><td>A ×2、X2 ×1</td><td>2025-10 ~ 2026-01</td><td>secondary</td><td>Medium</td><td>生态全景补充（均非关键论据唯一来源）</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <details class="mb-4 bg-white rounded-lg border border-zinc-200 p-4">
+        <summary class="font-semibold text-sm">A.3 上报未采用清单（6 个，含处置理由——并集规则的完整 disposition）</summary>
+        <div class="overflow-x-auto mt-3">
+          <table class="tbl w-full">
+            <thead><tr><th>来源</th><th>上报方</th><th>处置理由</th></tr></thead>
+            <tbody>
+              <tr><td>oflight.co.jp（日企 Agent Teams 实践）</td><td>X2</td><td>其 <code>CLAUDE_AGENT_TEAMS=true</code> 细节被补搜 REFUTED（官方为 <code>CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1</code>），正文改引官方 agent-teams 文档；案例价值记录于此</td></tr>
+              <tr><td>timewell.jp（Managed Agents 解读）</td><td>X2</td><td>时间点与定位已由官方博客直接证实，正文以官方源替代二手转述</td></tr>
+              <tr><td>tygartmedia.com（SDK 迁移踩坑）</td><td>X2</td><td>内容已被官方 migration guide 覆盖，以官方源替代</td></tr>
+              <tr><td>boringbot.substack.com（组件综述）</td><td>A</td><td>二手综述，与官方文档论据重复，无增量</td></tr>
+              <tr><td>openaitoolshub.org（workflow 综述）</td><td>B</td><td>Low 质量（聚合博客），未获第二来源交叉验证</td></tr>
+              <tr><td>ajaywadhara/agentic-sdlc-plugin</td><td>B</td><td>Low 质量（1★ 无社区），仅作存在性记录</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-sm mt-3"><strong>X1/X2 无静默丢弃</strong>：X1 上报 27 源全部采用；X2 上报 7 源中 4 用 3 替换（替换理由如上，发现本身经核实后保留于正文——Managed Agents、arXiv×2、Agent Teams 修正版）。</p>
+      </details>
+    </section>
+
+    <section class="mb-16">
+      <h2 id="metadata" class="text-xl font-bold text-zinc-900 mb-3">调研 Metadata</h2>
+      <details class="bg-white rounded-lg border border-zinc-200 p-5" open>
+        <summary class="font-semibold text-sm mb-2">调研过程与质量门禁记录（点击折叠/展开）</summary>
+        <ul class="list-disc pl-5 space-y-1.5 text-[.85rem] leading-relaxed mt-3">
+          <li><strong>异构模型</strong>: X1=gpt-5.6-sol-xhigh / X2=gemini-3.1-pro</li>
+          <li><strong>X2 增量</strong>: 独有且核实通过 3 条（Managed Agents 公测时间点、arXiv 2604.04978、arXiv 2512.10398）/ 细节修正 1 条（Agent Teams env var 名，REFUTED 后按官方文档修正）/ Drop 0 条</li>
+          <li><strong>Phase 2.5 Reflection</strong>: 子问题覆盖率 Q1-Q5 全覆盖 ✅；4 条 single-source 全部安排补搜，6 项核实 5 CONFIRMED / 1 REFUTED（已修正）✅；vendor-claim——ruflo 自我声明已标注需 PoC ✅；质量分布 High ≈70% / Low &lt;5% ✅；追搜决策 Yes（1 轮，Gemini 族定向核实）</li>
+          <li><strong>未证实已剔除</strong>: 无（所有进入正文的发现均 ≥2 独立源或经补搜核实）</li>
+          <li><strong>Phase 5.5 Citation Health</strong>: Layer A——51 URLs，50 ok，1 初报 dead 经人工复核为瞬时超时（实际 200）→ 实际 dead 0%；Layer B——6 claims 抽样 6 supported (100%)。<span class="pill pill-ok">PASS</span></li>
+          <li><strong>Phase 6 异构终审 verdict</strong>: Refine（3 条建议）</li>
+          <li><strong>辩论收敛</strong>: Round 1 全 accept 自动收敛（3/3 条建议经独立证据实查后全部采纳并落实进正文，无剩余分歧）</li>
+          <li><strong>事实 tiebreaker</strong>: 未触发（Round 1 收敛，无剩余分歧）</li>
+          <li><strong>人类介入</strong>: 无（无未收敛分歧）</li>
+          <li><strong>v2 修订（2026-07-30，用户指令：并入配套调研）</strong>: 引入《企业级软件开发端到端阶段划分》调研结论——①两视图原则（ISO 12207:2026 阶段/过程分离）：6 段治理底图 × 产物状态机映射表；②状态机补两端：门禁⓪ 立项/下注（PR-FAQ）+ 门禁⑤ 退役评审（Google deprecation / EU CRA），四门禁扩为六门禁；③门禁密度按风险配置（NASA ↔ Amazon 谱系，证据触发）；④验证税实证进四级验证设计依据（Faros +91% review / METR 慢 19% / Anthropic 40 万会话）；⑤目录树 +5（prfaq/prr/deprecation/discovery+retire skills）；⑥DORA 五指标入 L4；⑦风险 +2（EU CRA、验证税厂商依赖）。新增引用 14 个 URL 全部抽查存活</li>
+          <li><strong>v2.1 命名更正</strong>: 范围已覆盖战略/立项→退役全程，超出口语中 "SDLC" 的惯常含义（教科书 SDLC 恰不含两端），平台与产物命名由 SDLC 更正为 <strong>E2E（端到端）</strong>；正文保留 "SDLC" 一词之处均指其经典狭义用法或原始研究问题表述</li>
+        </ul>
+        <h4 class="font-semibold text-sm mt-4 mb-2">Phase 6 辩论历史 · Round 1 判断矩阵（reviewer=gpt-5.6-sol-xhigh，verdict=Refine）</h4>
+        <div class="overflow-x-auto">
+          <table class="tbl w-full">
+            <thead><tr><th>建议</th><th class="w-20">立场</th><th>论据 / 证据</th></tr></thead>
+            <tbody>
+              <tr><td>① 补齐 X1/X2 并集审计链与成功标准核算</td><td><span class="pill pill-ok">accept</span></td><td>Brief 成功标准应在成稿可验证；已补附录 A（58 源清单 + 6 条未采用 disposition + 三项标准核算）</td></tr>
+              <tr><td>② 降两处成熟度表述：spec-kit "每阶段人审"过强；"积木已稳定"与 v2.1.218 行为变更不符；自建组合企业成熟度 5→?</td><td><span class="pill pill-ok">accept</span></td><td>实查 <a class="ext" href="https://github.com/github/spec-kit/blob/main/docs/reference/workflows.md">spec-kit workflows.md</a>：显式 gate 仅 review-spec/review-plan、shell step 无沙箱；<a class="ext" href="https://github.com/anthropics/claude-code/releases/tag/v2.1.218">v2.1.218</a> 实存。已改写正文 3 处并调降矩阵评分</td></tr>
+              <tr><td>③ hooks 非安全边界（best-effort/fail-open，硬策略靠 permission system；不可绕过门禁在服务端）+ 补供应链风险</td><td><span class="pill pill-ok">accept</span></td><td>实查<a class="ext" href="https://code.claude.com/docs/en/hooks">官方 hooks 参考</a>原文 "Because the <code>if</code> filter is best-effort, use the permission system rather than a hook to enforce a hard allow or deny"。已重写 hooks 定位 4 处、验证层级改四级、待验证风险 +2 条</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="text-xs text-zinc-400 mt-4">调研方法：/survey · 四路异构搜索（2×Claude + GPT 族 + Gemini 族）· 并集合并不投票 · Reflection Gate 补搜核实 · 双层 Citation Health · 异构终审辩论 · 2026-07-30</p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral', flowchart: { htmlLabels: true } });
+
+  // Build TOC from h2 sections
+  const tocItems = [
+    ['tldr','TL;DR 执行摘要'], ['question','研究问题'], ['dimensions','评估维度'],
+    ['landscape','生态全景'], ['matrix','方案对比矩阵'], ['conflicts','冲突分析'],
+    ['recommendation','推荐'], ['arch','　架构设计'], ['dirs','　目录结构设计'],
+    ['process','　流程编排与门禁'], ['docs-design','　文档设计'], ['roadmap','　落地路线'],
+    ['sources','主要来源'], ['risks','待验证风险'], ['appendix','附录 A 来源审计'], ['metadata','调研 Metadata']
+  ];
+  const toc = document.getElementById('toc');
+  tocItems.forEach(([id, label]) => {
+    const a = document.createElement('a');
+    a.href = '#' + id; a.textContent = label; a.dataset.target = id;
+    toc.appendChild(a);
+  });
+
+  // Scroll-spy
+  const links = toc.querySelectorAll('a');
+  const targets = tocItems.map(([id]) => document.getElementById(id)).filter(Boolean);
+  const onScroll = () => {
+    let current = targets[0];
+    for (const t of targets) { if (t.getBoundingClientRect().top < 100) current = t; }
+    links.forEach(l => l.classList.toggle('active', l.dataset.target === current.id));
+  };
+  document.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // Open all details before print
+  window.addEventListener('beforeprint', () => document.querySelectorAll('details').forEach(d => d.open = true));
+</script>
+</body>
+</html>
