@@ -754,6 +754,31 @@ sed -E "s|^PATH_RE=.*|PATH_RE='__NEVER_MATCHES_ANYTHING__'|" \
     "$ROOT/scripts/check-skill-deps.sh" > "$SD_BROKEN"
 expect "SD/66 生产正则被改坏时金丝雀必须报警（而非静默 PASS）" 66 bash "$SD_BROKEN" "$ROOT"
 
+# ---------- adopt/init 能力层对等（冷启动 blocker 回归）----------
+# 起源：cmd_adopt 自己维护了一份平行清单，随平台加探针而漂移，最终比 init 少 12 个文件
+# （0 hook / 0 CI / 0 负样本 / 无 settings.json）—— 存量仓拿到残废安装却以为装好了。
+# 这里把探针**自己能不能发现漂移**钉死：只让 adopt 那一处退回旧式清单，必须被抓。
+echo "-- adopt/init 能力层对等 --"
+AP="$ROOT/scripts/check-adopt-parity.sh"
+if [ -f "$AP" ]; then
+  APW="$WORK/ap-mutant"
+  mkdir -p "$APW"
+  tar cf - --exclude='.git' --exclude='demo-video' --exclude='node_modules' -C "$ROOT" . 2>/dev/null \
+    | (cd "$APW" && tar xf -)
+  # 只改 cmd_adopt 里那一行（init 里的同名调用保持不变）→ 制造单侧漂移
+  awk '/^cmd_adopt\(\) \{/{ina=1}
+       ina && /^  install_capability_layer$/{print "  copy_tree \".claude/skills\" || true"; ina=0; next}
+       {print}' "$ROOT/bin/e2e" > "$APW/bin/e2e"
+  chmod +x "$APW/bin/e2e"
+  expect "adopt对等/1 adopt 单侧退回旧式清单必须被抓" 1 bash "$AP" "$APW"
+
+  # fail-closed：没有可检对象时必须 66，绝不能因为"两边都空所以相等"而假绿
+  APE="$WORK/ap-empty"; mkdir -p "$APE"
+  expect "adopt对等/66 无 bin/e2e 时拒绝 PASS" 66 bash "$AP" "$APE"
+else
+  echo "  ⚠️  跳过：无 check-adopt-parity.sh"
+fi
+
 # ---------- ratchet 负样本（S5，独立脚本）----------
 echo "-- ratchet.sh --"
 expect "ratchet 六用例（含替换违规总数不变）" 0 bash "$ROOT/tests/probe-negative/ratchet-negative.sh"

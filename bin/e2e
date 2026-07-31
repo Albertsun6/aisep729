@@ -94,45 +94,12 @@ cmd_init() {
     mkdir -p "$target/$d"
   done
 
-  # 复制平台能力（已实现的 skill + 公共库 + 探针）
-  copy_tree ".claude/skills"  || true
-  copy_tree ".claude/agents"  || true
-  copy_tree "scripts/lib"     || true
-  copy_tree ".claude/hooks"   || true
-  # bin/e2e 本身也要发：init 的"下一步"提示与手册都让用户在自己项目里跑 `e2e doctor`，
-  # 不发过去用户照做就是 command not found（SPEC-24 smoke 实测抓到）。
-  # 拷贝实例的 doctor/version 完全可用；init/adopt 有 E2E_HOME 自指守卫兜底。
-  copy_one  "bin/e2e" || true
-  copy_one  "scripts/check-shell-traps.sh" || true
-  copy_one  "scripts/check-structure.sh"   || true
-  copy_one  "scripts/check-skill-deps.sh"  || true
-  copy_one  "scripts/check-clause-refs.sh" || true
-  copy_one  "scripts/check-action-pins.sh" || true
-  copy_one  "scripts/check-ai-review-contract.sh" || true
-  copy_one  "scripts/check-readme.sh" || true
-  copy_one  "scripts/check-marketplace-sha.sh" || true
-  copy_one  "ops/check-branch-protection.sh" || true
-  copy_one  "scripts/check-selfcontained.sh" || true
-  copy_one  "scripts/ratchet.sh"           || true
-  copy_one  "tests/probe-negative/run.sh"  || true
-  copy_one  "tests/probe-negative/ratchet-negative.sh" || true
-  copy_one  "docs/process/skills-manifest.md" || true
-  # risk-tiers 是 e2e-review 第 1 步定档的唯一数据源。漏发它 = 定档静默跳过
-  # = 一切按低风险处理 = 不跑 LLM/异构评审 —— fail-open。由 check-skill-deps.sh 守住
-  copy_one  "docs/process/risk-tiers.md"   || true
-  copy_tree "docs/process/stages"          || true
-
-  # 生成项目侧文件
-  gen_file "AGENTS.md"        "$(tpl_agents)"
-  gen_file "CLAUDE.md"        "$(tpl_claude_md)"
-  # 宪法必须发完整版：skill / agent 大量引用 C6-C15，只发 C1-C5 残桩会让
-  # agent "读 C14"时读到一个没有 C14 的文件，然后静默按无约束继续（评审实证）。
-  copy_one "docs/constitution.md" || gen_file "docs/constitution.md" "$(tpl_constitution)"
-  gen_file "docs/glossary.md" "$(tpl_glossary)"
+  # 平台能力层 + 共用生成物：与 adopt **同一份清单**（见 CAP_TREES / CAP_FILES）
+  install_capability_layer
+  install_generated_common
   gen_file "docs/architecture/spine.md" "$(tpl_spine)"
-  gen_file ".github/workflows/quality-gates.yml" "$(tpl_ci)"
-  gen_file ".claude/settings.json" "$(tpl_settings)"
 
+  warn_hooks_unregistered
   echo
   if [ "$conflicts" -gt 0 ]; then
     echo "完成（${created} 个新建，${conflicts} 个已存在未覆盖）"
@@ -162,6 +129,7 @@ copy_tree() {
     dst="$target/$rel"
     if [ -e "$dst" ]; then
       n_skip=$((n_skip + 1)); conflicts=$((conflicts + 1))
+      conflict_list="${conflict_list:-}\n- \`${rel}\`（平台版未覆盖，如需采用请手工比对）"
     else
       mkdir -p "$(dirname "$dst")"; cp "$src" "$dst"
       n_new=$((n_new + 1)); created=$((created + 1))
@@ -177,10 +145,12 @@ INNER
   fi
 }
 copy_one()  { [ -f "$E2E_HOME/$1" ] || return 1
-  if [ -f "$target/$1" ]; then printf '  = %s（已存在，跳过）\n' "$1"; conflicts=$((conflicts+1)); return 0; fi
+  if [ -f "$target/$1" ]; then printf '  = %s（已存在，跳过）\n' "$1"; conflicts=$((conflicts+1))
+    conflict_list="${conflict_list:-}\n- \`${1}\`（平台版未覆盖，如需采用请手工比对）"; return 0; fi
   mkdir -p "$(dirname "$target/$1")"; cp "$E2E_HOME/$1" "$target/$1"; created=$((created+1)); printf '  + %s\n' "$1"; }
 gen_file()  {
-  if [ -f "$target/$1" ]; then printf '  = %s（已存在，跳过）\n' "$1"; conflicts=$((conflicts+1)); return 0; fi
+  if [ -f "$target/$1" ]; then printf '  = %s（已存在，跳过）\n' "$1"; conflicts=$((conflicts+1))
+    conflict_list="${conflict_list:-}\n- \`${1}\`（平台版未覆盖；建议把平台约定手工并入你的版本）"; return 0; fi
   # 空内容必须响亮失败（实测教训）：tpl_ci / tpl_spine 曾**从未定义**，
   # `$(tpl_ci)` 只在 stderr 留一行 command not found，然后静静写出 1 字节空文件——
   # 业务仓一键接入后拿到的是空 workflow（GitHub 视为无效 = 根本没有 CI）。
@@ -190,6 +160,85 @@ gen_file()  {
     return 66
   fi
   mkdir -p "$(dirname "$target/$1")"; printf '%s\n' "$2" > "$target/$1"; created=$((created+1)); printf '  + %s\n' "$1"; }
+
+# ---------- 能力层清单：init 与 adopt **共用同一份** ----------
+#
+# 冷启动验收 blocker：adopt 曾自己维护一份**平行**清单。平台后来陆续加了
+# hook、CI 模板、负样本套件、5 个探针，只加进 init 的清单 —— adopt 的没人记得同步。
+# 实测差距：init 发 60 个文件，adopt 只发 49，缺的正好是
+# **0 个 hook / 0 个 CI / 0 条负样本 / 无 settings.json**。
+# 后果不是"少点东西"，是**存量仓拿到一个残废安装还以为装好了**：
+# README 教的三条验收命令，第一条 FAIL、第三条文件根本不存在。
+#
+# 修法是结构性的：共用一份清单 → 漂移**不可能**再发生。
+# 由 scripts/check-adopt-parity.sh 钉住（会失败的断言，不是靠记性）。
+CAP_TREES=".claude/skills .claude/agents .claude/hooks scripts/lib docs/process/stages"
+CAP_FILES="bin/e2e
+scripts/check-shell-traps.sh
+scripts/check-structure.sh
+scripts/check-skill-deps.sh
+scripts/check-clause-refs.sh
+scripts/check-action-pins.sh
+scripts/check-ai-review-contract.sh
+scripts/check-readme.sh
+scripts/check-marketplace-sha.sh
+scripts/check-selfcontained.sh
+scripts/check-adopt-parity.sh
+scripts/ratchet.sh
+ops/check-branch-protection.sh
+tests/probe-negative/run.sh
+tests/probe-negative/ratchet-negative.sh
+docs/process/skills-manifest.md
+docs/process/risk-tiers.md"
+
+# install_capability_layer —— 平台能力（可执行部分）。init/adopt 一字不差地共用。
+# 依赖调用方 local 的 target/conflicts/created（bash 动态作用域）。
+install_capability_layer() {
+  local d f
+  for d in $CAP_TREES; do copy_tree "$d" || true; done
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    copy_one "$f" || true
+  done <<CAPEOF
+$CAP_FILES
+CAPEOF
+  # 宪法必须发完整版：skill / agent 大量引用 C6-C15，只发残桩会让 agent
+  # "读 C14"时读到一个没有 C14 的文件，然后静默按无约束继续（评审实证）。
+  copy_one "docs/constitution.md" || gen_file "docs/constitution.md" "$(tpl_constitution)"
+}
+
+# install_generated_common —— 两条路都要的生成物（模板渲染，既有文件一律不覆盖）。
+# 不含 spine.md：init 用模板、adopt 用扫描基线，是**真正的差异**，各自处理。
+install_generated_common() {
+  gen_file "AGENTS.md"        "$(tpl_agents)"
+  gen_file "CLAUDE.md"        "$(tpl_claude_md)"
+  gen_file "docs/glossary.md" "$(tpl_glossary)"
+  gen_file ".github/workflows/quality-gates.yml" "$(tpl_ci)"
+  # settings.json 是**两个 hook 的唯一注册处**。目标仓已有同名文件时不能覆盖，
+  # 但也**不能静静跳过** —— 那样 hook 一个都不生效，而用户以为装好了（fail-open）。
+  if [ -f "$target/.claude/settings.json" ]; then
+    hooks_unregistered=1
+  else
+    gen_file ".claude/settings.json" "$(tpl_settings)"
+  fi
+}
+
+# 已有 settings.json 时必须**响亮**地说清后果与做法，不能只在冲突清单里列一行路径。
+warn_hooks_unregistered() {
+  [ "${hooks_unregistered:-0}" = "1" ] || return 0
+  cat <<'WARN'
+
+⚠️  你的仓已有 .claude/settings.json —— 未覆盖，于是**两个 hook 一个都没注册**。
+    后果：改完文件不会即时 lint、收工不会强制验证。**门禁看着装好了，其实没生效。**
+    做法：把下面这段合进你现有的 settings.json（已有 hooks 字段就并进去）：
+
+      "hooks": {
+        "PostToolUse": [{ "matcher": "Edit|Write",
+          "hooks": [{ "type": "command", "command": "bash .claude/hooks/post-edit-lint.sh" }] }],
+        "Stop": [{ "hooks": [{ "type": "command", "command": "bash .claude/hooks/stop-verify.sh" }] }]
+      }
+WARN
+}
 
 # ---------- assess（SPEC-12：只读体检，产物出仓外）----------
 # 只读证明：本命令**不写目标仓任何路径**，三产物一律落 <repo>/../e2e-assess-<name>-<ts>/
@@ -337,40 +386,9 @@ cmd_adopt() {
     mkdir -p "$target/$d"
   done
 
-  # 能力层：**逐文件**判断（目录级判断会因前面 mkdir -p 建的空目录而整体跳过——实测踩过）
-  _adopt_file() {  # _adopt_file <相对文件路径>
-    local rel="$1"
-    [ -f "$E2E_HOME/$rel" ] || return 0
-    if [ -e "$target/$rel" ]; then
-      conflicts=$((conflicts+1))
-      conflict_list="${conflict_list}\n- \`${rel}\`（平台版未覆盖，如需采用请手工比对）"
-      return 0
-    fi
-    mkdir -p "$(dirname "$target/$rel")"
-    cp "$E2E_HOME/$rel" "$target/$rel"; created=$((created+1))
-  }
-  _adopt_copy() {  # _adopt_copy <相对路径>：目录则递归逐文件，文件则单个处理
-    local rel="$1" before_c=$conflicts before_n=$created
-    if [ -d "$E2E_HOME/$rel" ]; then
-      while IFS= read -r f; do _adopt_file "${f#$E2E_HOME/}"; done \
-        < <(find "$E2E_HOME/$rel" -type f -not -name '.DS_Store' 2>/dev/null)
-      printf '  %s %s/（新增 %s 文件，跳过 %s 已存在）\n' \
-        "$([ $((created-before_n)) -gt 0 ] && echo '+' || echo '=')" \
-        "$rel" "$((created-before_n))" "$((conflicts-before_c))"
-    else
-      _adopt_file "$rel"
-      [ $created -gt $before_n ] && printf '  + %s\n' "$rel" || printf '  = %s（已存在，保留原文件）\n' "$rel"
-    fi
-  }
-
-  for rel in .claude/skills .claude/agents scripts/lib bin/e2e \
-             scripts/check-shell-traps.sh scripts/check-structure.sh scripts/ratchet.sh \
-             scripts/check-skill-deps.sh scripts/check-clause-refs.sh \
-             ops/check-branch-protection.sh \
-             docs/process/skills-manifest.md docs/process/risk-tiers.md docs/process/stages \
-             docs/constitution.md; do
-    _adopt_copy "$rel"
-  done
+  # 能力层：与 init **同一份清单**（CAP_TREES / CAP_FILES）。
+  # 这里曾是一份手抄的平行清单，漂移到比 init 少 12 个文件 —— 见 CAP_FILES 处的说明。
+  install_capability_layer
 
   # 架构基线（as-is，不写理想架构）
   if [ ! -f "$target/docs/architecture/spine.md" ]; then
@@ -432,17 +450,8 @@ cmd_adopt() {
     created=$((created+1)); printf '  + docs/architecture/adr/ADR-001-retroactive-baseline.md（追认基线）\n'
   fi
 
-  # AGENTS.md / CLAUDE.md：走 init 的模板但不覆盖（**已存在也要计入冲突**，否则报告失真）
-  _adopt_gen() {  # _adopt_gen <文件名> <内容>
-    if [ -f "$target/$1" ]; then
-      printf '  = %s（已存在，保留原文件）\n' "$1"; conflicts=$((conflicts+1))
-      conflict_list="${conflict_list}\n- \`${1}\`（平台版未覆盖；建议把平台约定手工并入你的版本）"
-      return 0
-    fi
-    printf '%s\n' "$2" > "$target/$1"; created=$((created+1)); printf '  + %s\n' "$1"
-  }
-  _adopt_gen "AGENTS.md" "$(tpl_agents)"
-  _adopt_gen "CLAUDE.md" "$(tpl_claude_md)"
+  # 共用生成物（AGENTS/CLAUDE/glossary/CI/settings）：与 init 同一套，既有文件一律不覆盖
+  install_generated_common
 
   # 冲突清单（SPEC-13：该文件已存在时写仓外时间戳文件并退出 2）
   if [ "$conflicts" -gt 0 ]; then
@@ -461,6 +470,7 @@ cmd_adopt() {
     } > "$cfile"
   fi
 
+  warn_hooks_unregistered
   echo
   echo "完成：${created} 个新建，${conflicts} 个已存在未覆盖"
   echo "下一步: cd ${target} && e2e doctor；然后用 e2e-discovery 立项第一个 delta 变更（specs/<change>/）"

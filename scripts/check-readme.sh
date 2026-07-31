@@ -109,6 +109,27 @@ else
   echo "  ⚠️  无 tests/probe-negative/run.sh，跳过对账"
 fi
 
+# ---- ④b 声称的探针条数必须等于实际文件数 ----
+# 与负样本同一类毛病：手动维护的数字必然过期。实测 README 写 10、实有 13
+# —— 差的三个恰是最近加的（README 门面 / 插件 sha / adopt 对等），
+# 也就是说**越新的能力越不会被数进去**。
+echo "-- 探针条数对账 --"
+np=$(ls scripts/check-*.sh ops/check-*.sh 2>/dev/null | grep -c . || true); : "${np:=0}"
+if [ "$np" -eq 0 ]; then
+  echo "  ⚠️  未找到任何探针文件，跳过对账"
+else
+  cp_claim=$(grep -oE '\| 探针 \| \*\*[0-9]+\*\*' "$R" | grep -oE '[0-9]+' | head -1)
+  : "${cp_claim:=}"
+  if [ -z "$cp_claim" ]; then
+    echo "  ⚠️  README 未声称探针条数，跳过对账"
+  elif [ "$cp_claim" = "$np" ]; then
+    printf '  ✅ 探针条数对账一致：%s\n' "$np"
+  else
+    printf '  ❌ README 声称 %s 个探针，实有 %s 个 —— 新加的能力没被数进去\n' "$cp_claim" "$np"
+    bad=$((bad+1))
+  fi
+fi
+
 # ---- ⑤ 必须有「已知限制」段（门面不许只说好话）----
 if grep -qE '^#+ .*(已知限制|Known [Ll]imitations)' "$R"; then
   seg=$(awk '/^#+ .*(已知限制|Known [Ll]imitations)/{f=1;next} /^#+ /{if(f)exit} f' "$R" \
