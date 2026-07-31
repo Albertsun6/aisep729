@@ -190,6 +190,29 @@ else
   echo "  ❌ 反向 模板骨架原样被判合格（finding #3 未修好）"; fails=$((fails+1))
 fi
 
+# ---------- 陷阱扫描器可移植性（M2-D 血泪：grep -P 在 BSD 上静默失效）----------
+echo "-- check-shell-traps.sh 可移植性 --"
+# 坏样本用拼接生成——若把字面量直接写在本文件里，扫描器会（正确地）把本文件也判为含陷阱
+{ printf '#!/usr/bin/env bash\nv=1\n'; printf 'echo "$v%s"\n' '（中文标点紧跟变量名）'; } > "$WORK/trap.sh"
+expect "陷阱扫描/66 单文件负样本（BSD grep 也须抓到）" 66 bash "$ROOT/scripts/check-shell-traps.sh" "$WORK/trap.sh"
+# 强制用 BSD grep（去掉可能的 GNU grep 路径）复测——这是"别人的干净 macOS"的真实情形
+expect "陷阱扫描/66 纯 BSD grep 环境下仍能抓到" 66 env PATH=/usr/bin:/bin bash "$ROOT/scripts/check-shell-traps.sh" "$WORK/trap.sh"
+
+# ---------- hooks 本地反馈（SPEC-15/16，M2-D）----------
+echo "-- hooks --"
+total=$((total+1))
+if printf '{"tool_input":{"file_path":"%s"}}' "$WORK/trap.sh" | bash "$ROOT/.claude/hooks/post-edit-lint.sh" >/dev/null 2>&1; then
+  echo "  ❌ post-edit hook 未拦住含陷阱的文件"; fails=$((fails+1))
+else
+  echo "  ✅ post-edit hook 拦住含陷阱文件（本地快反馈生效）"
+fi
+total=$((total+1))
+if printf '{"tool_input":{"file_path":"%s/scripts/ratchet.sh"}}' "$ROOT" | bash "$ROOT/.claude/hooks/post-edit-lint.sh" >/dev/null 2>&1; then
+  echo "  ✅ post-edit hook 放行干净文件（不误伤）"
+else
+  echo "  ❌ post-edit hook 误伤干净文件"; fails=$((fails+1))
+fi
+
 # ---------- assess/adopt 契约（SPEC-12/13，M2-C）----------
 echo "-- e2e assess/adopt --"
 E2E_BIN="$ROOT/bin/e2e"

@@ -69,7 +69,7 @@ flowchart TB
 | ~~claude-code-action 在私有仓的配置/计费/权限未实测~~ **已拆（T-1）** | S1 ✅ **结论**：质量门禁 workflow 实测通过（macos-latest/13s/四阶段探针全绿，run 30583711579）；AI 评审改用 `claude -p --bare` headless（ADR-013：可复现+结构化判定+无第三方依赖），但认证绕不开（bare 跳过 OAuth，须 API key）→ **按预定降级**：外环纯质量门禁，AI 评审留内环；headless workflow 已写成模板待凭据启用 | 半天 | ✅ M1 首日已完成 | 已触发降级并记 ADR-013 |
 | ~~ratchet violation identity 稳定性~~ **已拆（T-3）** | S5 ✅ **结论**：身份=`工具:规则:文件:内容md5前8位`（**不含行号**→漂移不误报）；判定=`comm -13` 集合差（**非数量比较**→"替换违规总数不变"可抓）；linter 无关适配器（`RATCHET_LINTER` 可换）。六用例负样本全绿，过程中抓出 2 个真缺陷 | 半天 | ✅ M1 已完成 | 未触发降级（方案成立，无需退化粒度） |
 | 风险路由与分支保护组合行为（CODEOWNERS/approver≠author） | **S6：测试仓配置分支保护+高低风险两类 PR 路由实测** | 半天 | **M1-M2 之交** | 路由降级为"高风险全量人审"（不做路径细分）——记 ADR |
-| Stop hook 在 headless/CI 场景行为未知 | S3：headless `claude -p` 下验证 Stop/PostToolUse 是否触发 | 半天 | M2 | hooks 定位收窄为"交互会话专用"，CI 侧全靠 required checks（ADR-003 已兼容） |
+| ~~Stop hook 在 headless/CI 场景行为未知~~ **已拆（M2-D）** | S3 ✅ **结论**：headless `claude -p` 下 **PostToolUse 与 Stop 均正常触发**（实测各记录一次 FIRED）→ hooks 定位无需收窄，CI 内跑 `claude -p` 也受本地门禁保护。**但不改变 ADR-003**：hooks 仍是快反馈非安全边界（官方 fail-open 语义未变） | 半天 | ✅ M2-D 完成 | 未触发降级 |
 | ~~churn×complexity 体检在浅历史仓退化~~ **已拆（M2-C）** | S4 ✅ **结论**：阈值定为 **<20 commits 或 shallow clone 即降级**；降级后改报「规模清单（非空行数 Top20）」并**显式标注 ⚠️ 历史不足、大文件≠高风险**，避免拿不可信 churn 当依据。实测 4-commit 仓正确触发降级 | 2 小时 | ✅ M2-C 完成 | 降级即方案，已实现 |
 | plugin 本地 marketplace 安装路径未实测 | S2：e2e-discovery 打 plugin 从本地 marketplace 装进测试项目（Should 项，**后置**） | 半天 | M4 | US-11 降级为"目录拷贝+文档说明"——记 ADR |
 

@@ -19,7 +19,7 @@ MANIFEST="docs/process/skills-manifest.md"
 GLOSSARY="docs/glossary.md"
 miss=0; checked=0; pending=0
 
-[ -f "$MANIFEST" ] || { echo "FAIL(65): 缺 $MANIFEST（能力拓扑唯一来源）"; exit 65; }
+[ -f "$MANIFEST" ] || { echo "FAIL(65): 缺 ${MANIFEST}（能力拓扑唯一来源）"; exit 65; }
 echo "== 六件套结构扫描（manifest 驱动）=="
 
 # ---- 1-3：逐 skill 比对 ----
