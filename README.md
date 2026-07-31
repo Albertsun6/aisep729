@@ -3,6 +3,12 @@
 给 [Claude Code](https://claude.com/claude-code) 装上**六道人审门禁**和**一整套会失败的检查**，
 让 AI 写的代码从立项到退役每一步都留下可验证的证据。
 
+> **"人审"的口径要说准**（ADR-009）：试点形态下，六道门禁的裁决是**制品里的人类署名**，
+> 由服务端强制的只有"CI 必须绿"这一条。GitHub 的 `required_approving_review_count` 目前是 **0**，
+> 已合并的 PR **没有一个拿到过 GitHub review**——因为单人仓无法自我 approve。
+> 企业形态才把批准移到**服务端 review 事件**（approver≠author）。可自行核实：
+> `gh api repos/<owner>/<repo>/branches/main/protection`。
+
 **面向 macOS。中文。** 代码 Apache-2.0 · 文档 CC BY-SA 4.0（见 [LICENSE](./LICENSE)）
 
 ---
@@ -12,7 +18,10 @@
 市面上"AI 时代研发流程"的方法论不缺。本项目的差异不在流程图，
 而在于**绝大多数主张都有一个会失败的可执行断言钉着**。
 
-在自建自用过程中，这套门禁抓到了 30+ 条真实缺陷。下面这几条是它的分量：
+在自建自用过程中，这套门禁抓到的真实缺陷有**两个可核对的口径**：
+**18 条**归纳成陷阱写进了[实施手册 §2](./docs/implementation-manual.md)（陷阱 A–R），
+**95 条**沉淀成可执行负样本（`bash tests/probe-negative/run.sh` 的分母）。
+下面这几条是它的分量：
 
 | 抓到的 | 如果没抓到，会发生什么 |
 |---|---|
@@ -25,7 +34,7 @@
 | 生产就绪评审 21 条断言 | 独立对抗验证后 **16 条被证伪** —— 多数不是结论错，是**证据不实或说得太满** |
 
 **这些不是演示用的假 bug，是这套平台在建造自己时踩到的真坑，每一条都留下了负样本。**
-完整目录见 [实施手册 §2](./docs/implementation-manual.md)。
+陷阱全目录（A–R）见 [实施手册 §2](./docs/implementation-manual.md)。
 
 ---
 
@@ -71,7 +80,8 @@ cd /path/to/你的项目
 bash scripts/check-skill-deps.sh && bash scripts/check-clause-refs.sh && bash tests/probe-negative/run.sh
 ```
 
-三条全绿才算成功。任一条红，看输出的 `MISSING:` 行——它会直说缺什么、为什么。
+三条全绿才算成功。任一条红，看输出里以 `❌` 开头的行——它会直说**缺什么文件、被谁引用**，
+例如 `❌ e2e-review  引用了不存在的 docs/process/risk-tiers.md`。
 
 **存量项目**走 `bash bin/e2e assess <仓>`（只读体检，产物落**仓外**）→ `adopt`（非破坏接入）
 → `scripts/ratchet.sh`（存量违规豁免、新增违规阻断）。详见 [手册 §4](./docs/implementation-manual.md)。

@@ -60,6 +60,24 @@
 | `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**95 条**负样本，口径见 README） | 0/1 |
 | `.claude/skills/*/scripts/check-*.sh` | 各阶段制品结构 + 上游门禁串锁 | 0/64/65/66 |
 
+### `ratchet.sh` 的默认 linter 能力边界（**别当成通用 linter**）
+
+不设 `RATCHET_LINTER` 时，它用的是**内置 selfcheck**，只有 **2 条规则**、只扫 **`*.sh`**：
+
+| 规则 | 查什么 |
+|---|---|
+| `no-todo` | 文件里的 `TODO` / `FIXME` |
+| `require-set-u` | bash 脚本缺 `set -u` |
+
+也就是说：**它不认识 Python / JS / Go，也不做任何真正的静态分析**。
+棘轮机制（存量豁免、新增阻断）本身是通用的，但**信号源要你自己接**：
+
+```bash
+RATCHET_LINTER='shellcheck -f gcc . | ...' bash scripts/ratchet.sh
+```
+
+首次使用必须先 `bash scripts/ratchet.sh --rebaseline` 建基线，否则存量违规会全部当成新增。
+
 ### `check-marketplace-sha.sh` 为什么只在 main 跑
 
 它要求 `marketplace.json` 的 sha 指向"改动 `.claude/` 的那个 commit"，
