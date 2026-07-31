@@ -323,6 +323,165 @@ total=$((total+1))
 if [ "$rc" != 0 ]; then echo "  ✅ BP/非0 gh 不可用时不得静默通过（实际 ${rc}）"
 else echo "  ❌ BP 在 gh 不可用时 exit 0 —— 静默通过"; fails=$((fails+1)); fi
 
+# ---------- SPEC-24 smoke：手册教的每条命令在新项目里必须真实可跑 ----------
+# 起源：手册与 init 的"下一步"提示都让用户在自己项目里跑 `e2e doctor`，
+# 但 bin/e2e 从未被发到目标仓 —— 新用户照做即 command not found。
+# 文档说的和脚手架发的**漂移**了，只有真跑一次干净 init 才发现。
+echo "-- SPEC-24 手册命令可执行性 smoke --"
+SMOKE="$WORK/smoke-fresh"; mkdir -p "$SMOKE"
+bash "$ROOT/bin/e2e" init "$SMOKE" >/dev/null 2>&1 || true
+
+# 从手册里抽取它教用户跑的仓内命令，逐条验证目标仓里真的有
+MAN="$ROOT/docs/implementation-manual.md"
+if [ -f "$MAN" ]; then
+  man_refs=$(grep -oE 'bash (bin|scripts|ops|tests)/[A-Za-z0-9_./-]+' "$MAN" \
+             | sed -E 's/^bash //' | sort -u)
+  smoke_bad=0; smoke_n=0
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    smoke_n=$((smoke_n+1))
+    [ -e "$SMOKE/$r" ] || { echo "  ❌ 手册教了 ${r}，但 init 没发到目标仓"; smoke_bad=$((smoke_bad+1)); }
+  done <<INNER
+$man_refs
+INNER
+  total=$((total+1))
+  if [ "$smoke_n" -lt 3 ]; then
+    echo "  ❌ 只从手册抽到 ${smoke_n} 条命令——抽取失效"; fails=$((fails+1))
+  elif [ "$smoke_bad" -eq 0 ]; then
+    echo "  ✅ 手册教的 ${smoke_n} 条命令在新项目里全部存在"
+  else
+    fails=$((fails+1))
+  fi
+
+  # doctor 必须能在目标仓真跑起来（照 init 的"下一步"提示）
+  total=$((total+1))
+  if (cd "$SMOKE" && bash bin/e2e doctor >/dev/null 2>&1); then
+    echo "  ✅ 新项目里 bash bin/e2e doctor 可执行"
+  else
+    echo "  ❌ 新项目里 doctor 跑不起来（init 的"下一步"提示是假的）"; fails=$((fails+1))
+  fi
+else
+  total=$((total+1)); echo "  ❌ 找不到手册 $MAN"; fails=$((fails+1))
+fi
+
+# ---------- 门禁台账：决定值非法必须被抓（fail-open 修复回归）----------
+# 起源：7 个阶段探针里 6 个只用 gate_status **显示**决定值，从不校验它属于契约集合。
+# 门禁④ 被填成"放行"（契约是 批准/打回）后 check-release.sh --final 判 PASS 放行，
+# 直到门禁⑤ 入口才炸。台账层 fail-open —— 写错一个词能过自己那道门。
+echo "-- 门禁决定值合法性（gate_assert_legal）--"
+GW="$WORK/gatelegal"; mkdir -p "$GW"
+mk_prfaq() {  # mk_prfaq <决定值>
+  printf -- '# PRFAQ：t\n\n## 假设陈述\nx\n\n## Appetite\nx\n\n## 熔断线\nx\n\n## 深坑\nx\n\n## No-gos\nx\n\n## FAQ\nQ: a\nA: b\n\n---\n门禁⓪ 记录：\n- 批准人：tester\n- 决定：%s\n- 日期：2026-01-01\n- 备注：t\n' "$1" > "$GW/prfaq.md"
+}
+P0G="$ROOT/.claude/skills/e2e-discovery/scripts/check-prfaq.sh"
+
+for bad in 放行 批准 随便写; do
+  mk_prfaq "$bad"
+  total=$((total+1))
+  if bash "$P0G" "$GW/prfaq.md" 2>&1 | grep -q "决定值非法"; then
+    echo "  ✅ 门禁⓪ 拒绝非法决定值「${bad}」"
+  else
+    echo "  ❌ 门禁⓪ 放过了非法决定值「${bad}」——台账 fail-open 复发"; fails=$((fails+1))
+  fi
+done
+for good in go modify kill; do
+  mk_prfaq "$good"
+  total=$((total+1))
+  if bash "$P0G" "$GW/prfaq.md" 2>&1 | grep -q "决定值非法"; then
+    echo "  ❌ 门禁⓪ 误判合法值「${good}」为非法"; fails=$((fails+1))
+  else
+    echo "  ✅ 门禁⓪ 接受合法值「${good}」"
+  fi
+done
+
+# ---------- 三通道契约：block 只能来自 deterministic（改门禁探针后的回归）----------
+# 起源：check-review.sh 原用**整行子串匹配**判违规，于是一条 source=deterministic
+# 的 finding 只要在「提出方」列写了 llm-advisory 就被误判。改为按列解析后，
+# 必须双向钉死：真违规仍抓得到（防改松），归属列提及不误判（防假阳性）。
+#
+# fixture **自包含**：早期版本依赖 specs/platform-pilot/review.md，该文件不存在时
+# 走"跳过"分支，套件照样报绿 —— 又一次静默通过。现在 fixture 就地构造，必须真跑。
+echo "-- check-review.sh 三通道契约（按列解析）--"
+CRV="$ROOT/.claude/skills/e2e-review/scripts/check-review.sh"
+CVW="$WORK/cv/specs/x"; mkdir -p "$CVW"
+
+printf -- '# TASKS：fixture\n\n- [x] T-1 做完了 ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`\n' > "$CVW/tasks.md"
+
+cv_review() {  # cv_review <额外的 finding 行>
+  {
+    printf '# REVIEW：fixture\n\n## 定档结论\n\n- **风险档**：中\n- **依据**：fixture\n\n'
+    printf '## 覆盖声明\n\n- **已审**：a.sh\n- **未审及原因**：无\n\n'
+    printf '## Findings\n\n'
+    printf '| ID | severity | source | 类型 | 定位 | 问题 | 状态 | 证据 |\n'
+    printf '|---|---|---|---|---|---|---|---|\n'
+    printf '| F-1 | warn | deterministic | correctness | a.sh:1 | 基线条目 | fixed | `true` |\n'
+    printf '%s\n' "$1"
+    printf '\n## 异构评审\n\n异构评审: unavailable(fixture)\n\n'
+    printf -- '---\n门禁③ 记录：\n- 批准人：fixture\n- 决定：批准\n- 日期：2026-01-01\n- 备注：fixture\n'
+  } > "$CVW/review.md"
+}
+
+# 方向①：真违规（severity=block + source=llm-advisory）必须被抓
+cv_review '| F-99 | block | llm-advisory | correctness | a.sh:1 | LLM 声称必须阻断 | fixed | 无 |'
+total=$((total+1))
+if bash "$CRV" "$CVW/" --final 2>&1 | grep -q "违反三通道"; then
+  echo "  ✅ 真违规 block+llm-advisory 被抓到（门禁未被改松）"
+else
+  echo "  ❌ 真违规漏掉——三通道契约已失效"; fails=$((fails+1))
+fi
+
+# 方向②：source=deterministic 但归属列提及 llm-advisory，不得误判
+cv_review '| F-98 | block | deterministic | llm-advisory ×3 | correctness | a.sh:1 | 由 LLM 线索转化 | fixed | 负样本对旧实现失败 |'
+total=$((total+1))
+if bash "$CRV" "$CVW/" --final 2>&1 | grep -q "违反三通道"; then
+  echo "  ❌ 归属列提及 llm-advisory 被误判为违规（假阳性）"; fails=$((fails+1))
+else
+  echo "  ✅ 归属列提及不误判"
+fi
+
+# ---------- F-6 回归：行为探针不得碰工作区/索引 ----------
+# 起源：异构评审 + reviewer + security 三方独立指出 `git commit --allow-empty`
+# **会提交当前 index**。实测复现：暂存机密后跑探针，机密进了"空提交"；
+# 且 cleanup 的 branch -D 在**成功路径上也会**销毁那份暂存工作。
+# 这条把"不碰工作区"钉成可证伪断言：探针跑完后 index 与分支必须原样。
+echo "-- F-6 行为探针的副作用回归 --"
+BPREPO="$WORK/bp-sideeffect"
+mkdir -p "$BPREPO" && cd "$BPREPO"
+git init -q . && git config user.email t@t && git config user.name t
+echo base > a.txt && git add a.txt && git commit -qm base
+echo "STAGED-SECRET" > secret.txt && git add secret.txt
+IDX_BEFORE=$(git diff --cached --name-only | sort | tr '\n' ',')
+BR_BEFORE=$(git rev-parse --abbrev-ref HEAD)
+# 无 origin，探针会在推断仓库处 exit 2（降级），但**在此之前不得动索引**
+bash "$ROOT/ops/check-branch-protection.sh" >/dev/null 2>&1 || true
+IDX_AFTER=$(git diff --cached --name-only | sort | tr '\n' ',')
+BR_AFTER=$(git rev-parse --abbrev-ref HEAD)
+cd "$ROOT"
+total=$((total+1))
+if [ "${IDX_BEFORE}" = "${IDX_AFTER}" ] && [ "${BR_BEFORE}" = "${BR_AFTER}" ] \
+   && [ -f "$BPREPO/secret.txt" ]; then
+  echo "  ✅ BP 不碰索引/分支/工作区（索引 ${IDX_BEFORE} 原样，暂存文件仍在）"
+else
+  echo "  ❌ BP 有副作用：索引 [${IDX_BEFORE}]→[${IDX_AFTER}]，分支 ${BR_BEFORE}→${BR_AFTER}"
+  fails=$((fails+1))
+fi
+total=$((total+1))
+if git -C "$BPREPO" branch --list | grep -q '__e2e'; then
+  echo "  ❌ BP 残留临时分支"; fails=$((fails+1))
+else
+  echo "  ✅ BP 无残留临时分支"
+fi
+
+# ---------- F-11 回归：金丝雀必须能发现生产正则退化 ----------
+# 起源：reviewer + security 指出金丝雀用的正则与生产不是同一条，
+# 于是"生产正则写坏了金丝雀照样绿"。共用 PATH_RE 之后，本用例把该性质钉死：
+# 把生产 PATH_RE 改坏 → 金丝雀必须 exit 66，而不是继续跑出 PASS。
+echo "-- F-11 金丝雀能否发现引擎退化 --"
+SD_BROKEN="$WORK/check-skill-deps-broken.sh"
+sed -E "s|^PATH_RE=.*|PATH_RE='__NEVER_MATCHES_ANYTHING__'|" \
+    "$ROOT/scripts/check-skill-deps.sh" > "$SD_BROKEN"
+expect "SD/66 生产正则被改坏时金丝雀必须报警（而非静默 PASS）" 66 bash "$SD_BROKEN" "$ROOT"
+
 # ---------- ratchet 负样本（S5，独立脚本）----------
 echo "-- ratchet.sh --"
 expect "ratchet 六用例（含替换违规总数不变）" 0 bash "$ROOT/tests/probe-negative/ratchet-negative.sh"

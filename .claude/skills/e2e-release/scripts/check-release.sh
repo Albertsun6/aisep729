@@ -136,6 +136,8 @@ if [ -n "$gate4_owner" ] && [ "$gate4_owner" != "<待填>" ]; then
     && { echo "MISSING: 门禁④ 批准人非人类署名（\"${gate4_owner}\"）——宪法 C14 执行者不得自批"; missing=$((missing+1)); }
 fi
 
+# 门禁台账 fail-open 修复：校验本文件自己的决定值合法（gate.sh 单一实现）
+gate_assert_legal "$release" 批准 打回 || missing=$((missing+1))
 gate4=$(gate_status "$release")
 [ "$missing" -gt 0 ] && { echo "FAIL(66): 缺 ${missing} 项"; exit 66; }
 echo "PASS: release 结构完整 | PRR ${total} 项 | runbook 三节非空 | 门禁④=${gate4}"

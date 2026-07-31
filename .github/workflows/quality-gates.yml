@@ -42,6 +42,9 @@ jobs:
       - name: 平台自审 · 宪法条款引用（防条款层 fail-open）
         run: bash scripts/check-clause-refs.sh
 
+      - name: 实施手册结构（SPEC-24）
+        run: bash scripts/check-manual.sh
+
       - name: 探针负样本（宪法 C13：探针自身必须能证伪）
         run: bash tests/probe-negative/run.sh
 

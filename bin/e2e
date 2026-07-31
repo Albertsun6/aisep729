@@ -96,6 +96,10 @@ cmd_init() {
   copy_tree ".claude/agents"  || true
   copy_tree "scripts/lib"     || true
   copy_tree ".claude/hooks"   || true
+  # bin/e2e 本身也要发：init 的"下一步"提示与手册都让用户在自己项目里跑 `e2e doctor`，
+  # 不发过去用户照做就是 command not found（SPEC-24 smoke 实测抓到）。
+  # 拷贝实例的 doctor/version 完全可用；init/adopt 有 E2E_HOME 自指守卫兜底。
+  copy_one  "bin/e2e" || true
   copy_one  "scripts/check-shell-traps.sh" || true
   copy_one  "scripts/check-structure.sh"   || true
   copy_one  "scripts/check-skill-deps.sh"  || true
@@ -322,7 +326,7 @@ cmd_adopt() {
     fi
   }
 
-  for rel in .claude/skills .claude/agents scripts/lib \
+  for rel in .claude/skills .claude/agents scripts/lib bin/e2e \
              scripts/check-shell-traps.sh scripts/check-structure.sh scripts/ratchet.sh \
              scripts/check-skill-deps.sh scripts/check-clause-refs.sh \
              ops/check-branch-protection.sh \

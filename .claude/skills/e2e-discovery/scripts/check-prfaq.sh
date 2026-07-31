@@ -37,6 +37,8 @@ lines=$(grep -vc '^[[:space:]]*$' "$f")
 grep -qF "熔断线" "$f" || { echo "MISSING: go/kill 判据须含「熔断线」分层"; missing=$((missing+1)); }
 
 # 门禁状态(公共库)
+# 门禁台账 fail-open 修复：校验本文件自己的决定值合法（gate.sh 单一实现）
+gate_assert_legal "$f" go modify kill || missing=$((missing+1))
 gate=$(gate_status "$f")
 
 if [ "$missing" -gt 0 ]; then

@@ -54,6 +54,8 @@ pending=$(grep -cE "^- \[ \] " "$prd")
 [ "$pending" -gt 0 ] && echo "WARN: ${pending} 项待澄清未闭环(澄清或显式移交后再过门禁①)"
 
 # 门禁①状态(公共库)
+# 门禁台账 fail-open 修复：校验本文件自己的决定值合法（gate.sh 单一实现）
+gate_assert_legal "$prd" 批准 打回 || missing=$((missing+1))
 gate1=$(gate_status "$prd")
 
 [ "$missing" -gt 0 ] && { echo "FAIL(66): 缺 $missing 项"; exit 66; }
