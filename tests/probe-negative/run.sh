@@ -430,6 +430,26 @@ else
   echo "  ❌ 注入型 E2E_PR 未被拦（参数注入复发）"; fails=$((fails+1))
 fi
 
+# ---------- README 门面（公开仓第一眼）----------
+# 起源：仓已公开且挂在插件市场邀请安装，却**没有 README** —— 别人点开什么导航都没有。
+# 这个洞自建者永远发现不了（他知道所有文件在哪），是典型的"只有外人能看见"的缺陷。
+echo "-- README 门面 --"
+RM="$ROOT/scripts/check-readme.sh"
+RW="$WORK/readme"; mkdir -p "$RW"
+expect "README/65 无 README（公开仓无导航）" 65 bash "$RM" "$RW"
+printf '# x\n' > "$RW/README.md"
+expect "README/1 空壳 README" 1 bash "$RM" "$RW"
+{ for i in $(seq 25); do echo "行 ${i}"; done
+  echo '见 [手册](./docs/NOT-EXIST.md)'; echo '## 已知限制'
+  for i in $(seq 6); do echo "- 限制 ${i}"; done; } > "$RW/README.md"
+expect "README/1 链接指向不存在的文件" 1 bash "$RM" "$RW"
+{ for i in $(seq 25); do echo "行 ${i}"; done
+  echo '见 [自己](./README.md)'; echo '跑 `bash scripts/ghost.sh`'
+  echo '## 已知限制'; for i in $(seq 6); do echo "- 限制 ${i}"; done; } > "$RW/README.md"
+expect "README/1 教了一条跑不通的命令" 1 bash "$RM" "$RW"
+{ for i in $(seq 25); do echo "行 ${i}"; done; echo '见 [自己](./README.md)'; } > "$RW/README.md"
+expect "README/1 缺「已知限制」段（门面只说好话）" 1 bash "$RM" "$RW"
+
 # ---------- AI 评审三通道契约（LLM 不得有阻断权）----------
 # 起源：ai-review 模板早期写 `blocks>0 → exit 1`，把阻断权交给了 LLM，
 # 直接违反本平台自己的核心契约。连带效应更麻烦：fork PR 拿不到 secrets → job 红，
