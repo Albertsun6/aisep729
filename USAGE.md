@@ -57,7 +57,7 @@
 | `scripts/check-readme.sh` | README 链接/命令有效 + **负样本与探针条数对账** | 0/1/65/66 |
 | `scripts/check-marketplace-sha.sh` | 插件市场钉的 sha 不得落后（**只在 main 跑**，见下） | 0/1/66 |
 | `scripts/check-adopt-parity.sh` | adopt 装出来的能力层必须与 init 一致（**行为证明**） | 0/1/66 |
-| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**95 条**负样本，口径见 README） | 0/1 |
+| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**97 条**负样本，口径见 README） | 0/1 |
 | `.claude/skills/*/scripts/check-*.sh` | 各阶段制品结构 + 上游门禁串锁 | 0/64/65/66 |
 
 ### `ratchet.sh` 的默认 linter 能力边界（**别当成通用 linter**）
@@ -164,23 +164,25 @@ gh api -X DELETE repos/<owner>/<repo>/branches/main/protection
 
 ## 已知未完成（不得对外声称已解决）
 
-> 本节**必须与实施手册 §7 对账**。过期的"已知限制"比没有更危险——
+> 本节**必须与实施手册 §7 对账**，且**每一条都要标出处**——
+> `check-manual.sh` 会检查这一点（此前这条规则没有任何东西执行，实测已漂出 1 条只在这里、手册里没有的限制）。
+> 过期的"已知限制"比没有更危险——
 > 它会让人以为某个问题还在、或已经解决了，两个方向都会误导。
 
 **仍未解决**：
 
-- **分档可手填绕过** —— `check-review.sh` 只信 `review.md` 自填的档位，手填成低档探针发现不了
-- **升档触发无强制力** —— 规模/依赖超限只有建议力，没有 CI job 计算并阻断
-- **文本门禁台账不是防篡改凭证** —— 本轮修的 critical 只堵了"隐形伪造"，
+- **分档可手填绕过** —— `check-review.sh` 只信 `review.md` 自填的档位，手填成低档探针发现不了 （手册 §7）
+- **升档触发无强制力** —— 规模/依赖超限只有建议力，没有 CI job 计算并阻断 （手册 §7）
+- **文本门禁台账不是防篡改凭证** —— 本轮修的 critical 只堵了"隐形伪造"， （手册 §7.1b）
   **没堵"有写权限的人公开篡改"**。真正解决要把批准移到服务端 review 事件（手册 §7.1b）
 - ~~`ai-review.yml.template` 的 LLM 阻断权~~ —— **已修 @2026-07-31**：LLM 侧永不影响 CI 成败，
   只发 PR 评论；`check-ai-review-contract.sh` + 4 条负样本钉死。
   **顺带更正**：当时说"攻击者可控输入"那一半不成立——`pull_request` 下 fork PR 拿不到 secrets，
   LLM 根本跑不起来。真陷阱是"job 恒红 → 有人改成 `pull_request_target`"（经典 pwn request）
-- **只有一个人跑过** —— 全部验证来自自建者 + AI 评审，**无真人冷启动验证**。
+- **只有一个人跑过** —— 全部验证来自自建者 + AI 评审，**无真人冷启动验证**。 （手册 §7）
   正式交付前应找人照手册从零跑一遍
-- **`Bash(bash bin/e2e*)` 是任意目录写入原语** —— `init`/`adopt` 可往任意目录写文件且自动放行
-- **仅 macOS 实测** —— Linux / Windows 未验证
+- **`Bash(bash bin/e2e*)` 是任意目录写入原语** —— `init`/`adopt` 可往任意目录写文件且自动放行 （手册 §7）
+- **仅 macOS 实测** —— Linux / Windows 未验证 （手册 §7）
 
 **已闭环（记录在此以免重复排查）**：
 

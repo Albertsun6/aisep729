@@ -811,6 +811,31 @@ else
   echo "  ⚠️  跳过：无 check-prfaq.sh 或模板"
 fi
 
+# ---------- USAGE 已知限制 ↔ 手册 §7 对账（此前是条无人执行的规则）----------
+# 起源：USAGE.md 自己写着"本节**必须与实施手册 §7 对账**"，而没有任何东西执行它。
+# 实测已漂出 1 条只在 USAGE、手册里没有的限制（Bash(bash bin/e2e*) 任意目录写入原语）。
+echo "-- USAGE 已知限制对账 --"
+CM="$ROOT/scripts/check-manual.sh"
+if [ -f "$CM" ] && [ -f "$ROOT/USAGE.md" ]; then
+  # 用**符号链接**搭一棵真实树，只把 USAGE.md 换成变体：
+  # 直接复制 manual+USAGE 会让 check-manual 的"引用的脚本必须存在"那几项先红，
+  # 于是测不到对账本身（第一版就踩了这个）。
+  MW="$WORK/manual"; mkdir -p "$MW/scripts"
+  for d in docs bin ops tests .claude; do [ -e "$ROOT/$d" ] && ln -s "$ROOT/$d" "$MW/$d"; done
+  cp "$CM" "$MW/scripts/check-manual.sh"
+  for f in "$ROOT"/scripts/*.sh; do
+    [ "$(basename "$f")" = "check-manual.sh" ] || ln -s "$f" "$MW/scripts/$(basename "$f")"
+  done
+  # 好样本：条条标了出处 → 放行
+  cp "$ROOT/USAGE.md" "$MW/USAGE.md"
+  expect "对账/0 条条标了手册出处必须放行" 0 bash "$MW/scripts/check-manual.sh" "$MW/docs/implementation-manual.md"
+  # 坏样本：抹掉出处标注 → 必须被抓（否则这条规则又变回"写着但没人执行"）
+  sed 's/ （手册 §7）$//; s/ （手册 §7\.1b）$//' "$ROOT/USAGE.md" > "$MW/USAGE.md"
+  expect "对账/66 有限制未标手册出处必须被抓" 66 bash "$MW/scripts/check-manual.sh" "$MW/docs/implementation-manual.md"
+else
+  echo "  ⚠️  跳过：无 check-manual.sh 或 USAGE.md"
+fi
+
 # ---------- assess 的风险分级初稿（冷启动 MAJOR：三处假数据）----------
 # ① 热点 glob 恒为字面量 `---`（旧写法按固定行号 head -8|tail -3，取到的是表头与分隔行）
 #    —— 一条永远匹配不到任何文件的"高风险"规则：看着有、实际没有

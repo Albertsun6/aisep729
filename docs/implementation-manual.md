@@ -445,6 +445,10 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
   `gh pr list --state merged --limit 200 --json number --jq 'length'`（走了门禁的）
   对比 `git rev-list --count main`（全部）。
   这条限制会随时间自然消解，但**在它消解前不得含糊**。
+- **`Bash(bash bin/e2e*)` 是任意目录写入原语**：脚手架命令被写进了自动放行名单，
+  而 `init` / `adopt` 可以往**任意目录**写文件。允许一条命令就等于允许它的全部能力域——
+  批准 `bash bin/e2e*` 时批的不是"跑个脚手架"，是"往任何路径写文件"。
+  这条此前只写在 `USAGE.md`、**没进本手册**——正是"对账规则无人执行"的实例，已补。
 
 ### 7.1b 文本门禁台账**不是防伪凭证**（安全评审 critical，必读）
 
@@ -521,7 +525,7 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
 |---|---|
 | 平台版本 | `0.1.0-M1`（`bin/e2e version`） |
 | 实测环境 | macOS（Darwin 25.5.0）、bash 3.2.57、BSD grep |
-| 验证基线 | 负样本 **95/95**；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
+| 验证基线 | 负样本 **97/97**；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
 | gitleaks | 8.30.1（两仓全历史 0 leaks） |
 | 门禁行为证明 | 两仓 `ops/check-branch-protection.sh` 均 CONFIRMED |
 | Action pin | `actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`（v5） |

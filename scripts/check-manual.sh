@@ -105,6 +105,33 @@ else
   printf '  ✅ 无夸大表述\n'
 fi
 
+# ---- USAGE 的「已知限制」必须条条标出处（把"必须对账"变成可执行的）----
+# 冷启动 MAJOR：USAGE.md 自己写着"本节**必须与实施手册 §7 对账**"，
+# 而**没有任何东西执行它**。实测已漂出 1 条只在 USAGE、手册里没有的限制
+# （`Bash(bash bin/e2e*)` 任意目录写入原语）。
+# 不做模糊文本比对（两边措辞本就不同，比对必然噪音大），改为要求
+# **每条限制标出它在手册里的出处** —— 精确、无误报，且逼作者真的去找一遍。
+U="${_root}/USAGE.md"
+if [ -f "$U" ]; then
+  echo "-- USAGE 已知限制 ↔ 手册 §7 对账 --"
+  ub=$(awk '/已知限制/{g=1;next} g&&/^#+ /{exit} g&&/^- /{print}' "$U")
+  nu=$(printf '%s\n' "$ub" | grep -c . || true); : "${nu:=0}"
+  if [ "$nu" -eq 0 ]; then
+    echo "  ⚠️  USAGE 无「已知限制」条目，跳过"
+  else
+    # 已闭环的条目（删除线 ~~…~~）不要求标出处：记录的是历史，不是现存限制
+    noanchor=$(printf '%s\n' "$ub" | grep -v '~~' | grep -v '手册 §7' || true)
+    if [ -n "$noanchor" ]; then
+      n=$(printf '%s\n' "$noanchor" | grep -c . || true)
+      printf '  ❌ %s 条限制未标手册出处（USAGE 自己的规则要求对账，得能查）：\n' "$n"
+      printf '%s\n' "$noanchor" | cut -c1-70 | sed 's/^/     /'
+      missing=$((missing+1))
+    else
+      printf '  ✅ %s 条限制全部标了手册出处\n' "$nu"
+    fi
+  fi
+fi
+
 echo
 if [ "$missing" -gt 0 ]; then
   echo "FAIL(66): 手册缺 ${missing} 项"
