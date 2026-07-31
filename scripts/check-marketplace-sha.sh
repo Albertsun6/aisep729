@@ -12,6 +12,11 @@
 #   就说明分发内容已过期 → FAIL。
 #   注意：只看被分发路径的改动。仓里改别的（如 docs/）不影响插件内容，不该报错。
 #
+# ⚠️ 只能在 **main** 上跑，不能当 PR 门禁：
+#   sha 要指向"改动 .claude 的那个 commit"，而 PR 里它**还不存在**（鸡生蛋）。
+#   合进 main 后紧跟一个只改 marketplace.json 的 commit 即可转绿
+#   —— 那个 commit 不碰 .claude，所以自己不会把自己再弄红。
+#
 # 用法：bash scripts/check-marketplace-sha.sh [<repo-root>]
 # 退出码：0=最新  1=已过期  66=自检失败/无法判定（fail-closed）
 

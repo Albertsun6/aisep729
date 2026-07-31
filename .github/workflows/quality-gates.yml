@@ -53,7 +53,12 @@ jobs:
       - name: AI 评审三通道契约（LLM 不得有阻断权）
         run: bash scripts/check-ai-review-contract.sh
 
+      # 只在 main 上跑：sha 必须指向"改动本身所在的 commit"，而 PR 里那个 commit
+      # **还不存在** —— 在 PR 上这条断言永远不可满足（鸡生蛋）。
+      # 合进 main 后它变得可满足：紧接着推一个只改 marketplace.json 的 commit 即可转绿。
+      # main 变红的含义是准确的：**此刻市场分发的确实是旧内容**，去更新 sha。
       - name: 插件市场 sha 时效（钉住旧版本比不钉更危险）
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: bash scripts/check-marketplace-sha.sh
 
       - name: README 门面（链接/命令/已知限制）
