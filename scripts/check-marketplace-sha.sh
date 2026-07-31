@@ -52,6 +52,14 @@ while IFS=$'\t' read -r name sha path; do
     bad=$((bad + 1)); continue
   fi
   if ! git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+    # 区分「sha 写错」与「历史不全」—— 误诊会让人去改一个没错的东西。
+    # CI 默认浅克隆（fetch-depth: 1），本探针在那里会把正确的 sha 报成"不存在"。
+    if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+      # 这是**无法判定**（66），不是"已过期"（1）——报成过期会让人去改一个没错的 sha。
+      echo "FAIL(66): 无法判定 —— 这是**浅克隆**，历史不全，取不到 sha ${sha:0:12}" >&2
+      echo "   这不代表 sha 写错了。修法：CI 的 checkout 加 fetch-depth: 0" >&2
+      exit 66
+    fi
     echo "     ❌ sha ${sha:0:12} 在本仓不存在（写错或已被 rebase 掉）"
     bad=$((bad + 1)); continue
   fi
