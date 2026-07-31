@@ -511,7 +511,7 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
 |---|---|
 | 平台版本 | `0.1.0-M1`（`bin/e2e version`） |
 | 实测环境 | macOS（Darwin 25.5.0）、bash 3.2.57、BSD grep |
-| 验证基线 | 负样本 **81/81**；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
+| 验证基线 | 负样本 **83/83**；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
 | gitleaks | 8.30.1（两仓全历史 0 leaks） |
 | 门禁行为证明 | 两仓 `ops/check-branch-protection.sh` 均 CONFIRMED |
 | Action pin | `actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`（v5） |

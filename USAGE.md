@@ -53,8 +53,19 @@
 | `scripts/check-action-pins.sh` | 第三方 Action 必须 SHA-pin（C15） | 0/1/66 |
 | `scripts/check-manual.sh` | 实施手册结构 + **夸大表述自查**（SPEC-24） | 0/65/66 |
 | `scripts/check-demo-video.sh` | 演示视频交付判据（SPEC-25），**实测音量判静音** | 0/1/66 |
-| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**81 条**负样本，口径见 README） | 0/1 |
+| `scripts/check-ai-review-contract.sh` | AI 评审 workflow 不得让 LLM 决定 CI 成败（三通道契约） | 0/1/66 |
+| `scripts/check-readme.sh` | README 链接/命令有效 + **负样本与探针条数对账** | 0/1/65/66 |
+| `scripts/check-marketplace-sha.sh` | 插件市场钉的 sha 不得落后（**只在 main 跑**，见下） | 0/1/66 |
+| `scripts/check-adopt-parity.sh` | adopt 装出来的能力层必须与 init 一致（**行为证明**） | 0/1/66 |
+| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**83 条**负样本，口径见 README） | 0/1 |
 | `.claude/skills/*/scripts/check-*.sh` | 各阶段制品结构 + 上游门禁串锁 | 0/64/65/66 |
+
+### `check-marketplace-sha.sh` 为什么只在 main 跑
+
+它要求 `marketplace.json` 的 sha 指向"改动 `.claude/` 的那个 commit"，
+而在 PR 里**那个 commit 还不存在**（鸡生蛋）——当 PR 门禁会永远不可满足。
+合进 main 后紧跟一个**只改 marketplace.json** 的 commit 即可转绿。
+main 变红的含义是准确的：**此刻插件市场分发的确实是旧内容**。
 
 ### `check-shell-traps.sh` 拦的三类写法
 
