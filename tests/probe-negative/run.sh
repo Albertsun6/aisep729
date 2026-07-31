@@ -811,6 +811,56 @@ else
   echo "  ⚠️  跳过：无 check-prfaq.sh 或模板"
 fi
 
+# ---------- assess 的风险分级初稿（冷启动 MAJOR：三处假数据）----------
+# ① 热点 glob 恒为字面量 `---`（旧写法按固定行号 head -8|tail -3，取到的是表头与分隔行）
+#    —— 一条永远匹配不到任何文件的"高风险"规则：看着有、实际没有
+# ② 没有兜底档：不匹配任何 glob 的新目录/新语言 = 没有档 = 静默按最低处理
+# ③ 降级判据数的是**全部**历史，而 churn 只看近一年 → 老仓判"历史充足"，churn 表却是空的
+echo "-- assess 风险分级初稿 --"
+if command -v git >/dev/null 2>&1 && [ -f "$ROOT/bin/e2e" ]; then
+  AW="$WORK/assess"; mkdir -p "$AW/live"
+  ( cd "$AW/live" && git init -q
+    for i in 1 2 3 4 5; do printf 'line %s\n' "$i" >> code.sh
+      git -c user.email=a@b -c user.name=a commit -qam "c$i" 2>/dev/null || \
+      { git add -A; git -c user.email=a@b -c user.name=a commit -qm "c$i"; }; done
+    for i in $(seq 6 25); do git -c user.email=a@b -c user.name=a commit -q --allow-empty -m "c$i"; done ) >/dev/null 2>&1
+  bash "$ROOT/bin/e2e" assess "$AW/live" -o "$AW/out" >/dev/null 2>&1
+  DR="$AW/out/risk-tiers-draft.md"
+
+  total=$((total+1))
+  if [ -f "$DR" ] && ! grep -qE '高（热点）\*\* \| -+ *\|' "$DR"; then
+    echo "  ✅ assess/热点 glob 不是字面量 --- （旧实现固定行号取到了分隔行）"
+  else
+    echo "  ❌ assess/热点 glob 又变回 --- 了（匹配不到任何文件的假规则）"; fails=$((fails+1))
+  fi
+
+  total=$((total+1))
+  if [ -f "$DR" ] && grep -q '兜底' "$DR"; then
+    echo "  ✅ assess/存在兜底档（未分类路径不得默认低风险）"
+  else
+    echo "  ❌ assess/缺兜底档：不匹配任何 glob 的路径没有档 = 静默按最低处理"; fails=$((fails+1))
+  fi
+
+  # ③ 老仓：全量 25 commits 够，但**近一年 0** —— 旧判据会误判为历史充足
+  # 注意必须设 GIT_COMMITTER_DATE：--since 按 committer date 过滤，--date 只改 author date
+  mkdir -p "$AW/stale"
+  ( cd "$AW/stale" && git init -q
+    for i in $(seq 1 25); do
+      GIT_COMMITTER_DATE="2021-01-01T12:00:00" git -c user.email=a@b -c user.name=a \
+        commit -q --allow-empty --date="2021-01-01T12:00:00" -m "c$i"
+    done ) >/dev/null 2>&1
+  bash "$ROOT/bin/e2e" assess "$AW/stale" -o "$AW/out2" >/dev/null 2>&1
+  total=$((total+1))
+  if grep -q '近一年 0 commits' "$AW/out2/hotspots.md" 2>/dev/null \
+     && ! grep -q '高（热点）' "$AW/out2/risk-tiers-draft.md" 2>/dev/null; then
+    echo "  ✅ assess/老仓（近一年无提交）正确降级，不产出建立在零数据上的热点档"
+  else
+    echo "  ❌ assess/老仓未降级：churn 窗口是空的，热点档建立在零数据上"; fails=$((fails+1))
+  fi
+else
+  echo "  ⚠️  跳过：无 git 或 bin/e2e"
+fi
+
 # ---------- adopt/init 能力层对等（冷启动 blocker 回归）----------
 # 起源：cmd_adopt 自己维护了一份平行清单，随平台加探针而漂移，最终比 init 少 12 个文件
 # （0 hook / 0 CI / 0 负样本 / 无 settings.json）—— 存量仓拿到残废安装却以为装好了。
