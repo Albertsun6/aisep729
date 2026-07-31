@@ -92,7 +92,7 @@ bash scripts/check-skill-deps.sh && bash scripts/check-clause-refs.sh && bash te
 
 ```bash
 claude plugin marketplace add Albertsun6/aisep729
-claude plugin install e2e-platform@aisep729-e2e
+claude plugin install aisep@aisep
 ```
 
 装完你拿到 **7 个 skill + 3 个 agent**，它们会照常引导你走六段流程。

@@ -53,7 +53,7 @@ GitHub 的 traffic API 只有 14 天窗口且需权限，clone 与插件安装�
 | 使用者的 `specs/*/` 门禁台账 | **保留不动** | 原位不变 | `bash .claude/skills/e2e-review/scripts/check-review.sh specs/<f>/ --final` | 永久 | 使用者本人 |
 | 平台仓 git 历史 | **保留**（不销毁） | GitHub 原仓，标记 archived | `gh repo view Albertsun6/aisep729 --json isArchived --jq '.isArchived'` → `true` | 可逆（`gh repo unarchive`） | 平台 owner |
 | `.claude-plugin/marketplace.json` | **迁移**（下线插件条目，保留文件说明已退役） | 原位改写 | `claude plugin marketplace add Albertsun6/aisep729` 后 `claude plugin list` 应看不到可装项 | 可逆（改回即可） | 平台 owner |
-| 使用者本机的插件缓存 | **销毁**（需使用者自行执行） | 不适用 | 使用者跑 `ls ~/.claude/plugins/cache/aisep729-e2e/` → 应为空或不存在 | **备份**：无需备份（内容与公开仓一致，随时可重新取得） | 使用者本人 |
+| 使用者本机的插件缓存 | **销毁**（需使用者自行执行） | 不适用 | 使用者跑 `ls ~/.claude/plugins/cache/aisep/ ~/.claude/plugins/cache/aisep729-e2e/` → 均应为空或不存在（后者是 2026-07-31 更名前的旧路径，早期安装者会落在那里） | **备份**：无需备份（内容与公开仓一致，随时可重新取得） | 使用者本人 |
 | CI 运行记录 | **销毁**（GitHub 按保留策略自动清理） | 不适用 | `gh run list --limit 1` → 退役后不再产生新 run | **备份**：退役前把最后一次全绿 run 的结论落成文本留档，**保留至 2027-07-31** | 平台 owner |
 
 **销毁类处置的备份与保留期**：两项销毁对象（插件缓存、CI 记录）均**无需长期归档**——

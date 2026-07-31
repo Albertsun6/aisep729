@@ -1,13 +1,13 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "aisep729-e2e",
+  "name": "aisep",
   "description": "企业级端到端研发平台：七阶段 skill + 六道门禁 + 可证伪探针体系。每条主张都有一个会失败的负样本钉着。",
   "owner": {
     "name": "Albertsun6"
   },
   "plugins": [
     {
-      "name": "e2e-platform",
+      "name": "aisep",
       "description": "七个阶段 skill（立项/需求/设计/实现/评审/发布/退役）+ 三个评审 agent。⚠️ 本插件**只分发能力层**：不含 bin/e2e、不含平台探针与负样本套件，各阶段 skill 自带的门禁探针在插件模式下**无法运行**（它们依赖仓内 scripts/lib/）。要完整门禁请 git clone 仓库后跑 bash bin/e2e init <你的项目>。",
       "author": {
         "name": "Albertsun6"

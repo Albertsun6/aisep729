@@ -293,7 +293,7 @@ cd /path/to/your-project
 
 ```bash
 claude plugin marketplace add Albertsun6/aisep729
-claude plugin install e2e-platform@aisep729-e2e
+claude plugin install aisep@aisep
 ```
 
 **实测跑通**：装完在 `~/.claude/plugins/cache/` 下拿到 7 个 skill + 3 个 agent + 2 个 hook，
