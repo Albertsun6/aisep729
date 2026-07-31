@@ -95,13 +95,13 @@ cmd_init() {
   copy_tree ".claude/skills"  || true
   copy_tree ".claude/agents"  || true
   copy_tree "scripts/lib"     || true
+  copy_tree ".claude/hooks"   || true
   copy_one  "scripts/check-shell-traps.sh" || true
   copy_one  "scripts/check-structure.sh"   || true
   copy_one  "scripts/check-selfcontained.sh" || true
   copy_one  "scripts/ratchet.sh"           || true
   copy_one  "tests/probe-negative/run.sh"  || true
   copy_one  "tests/probe-negative/ratchet-negative.sh" || true
-  copy_one  ".github/workflows/quality-gates.yml" || true
   copy_one  "docs/process/skills-manifest.md" || true
   copy_tree "docs/process/stages"          || true
 
@@ -111,6 +111,7 @@ cmd_init() {
   gen_file "docs/constitution.md" "$(tpl_constitution)"
   gen_file "docs/glossary.md" "$(tpl_glossary)"
   gen_file "docs/architecture/spine.md" "$(tpl_spine)"
+  gen_file ".github/workflows/quality-gates.yml" "$(tpl_ci)"
   gen_file ".claude/settings.json" "$(tpl_settings)"
 
   echo
@@ -508,7 +509,16 @@ tpl_settings() { cat <<'EOF'
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "allow": ["Bash(bash scripts/*)", "Bash(bash .claude/skills/*/scripts/*)"]
+    "allow": ["Bash(bash scripts/*)", "Bash(bash tests/*)", "Bash(bash .claude/skills/*/scripts/*)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-edit-lint.sh\"", "timeout": 20 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-verify.sh\"", "timeout": 180 }] }
+    ]
   }
 }
 EOF

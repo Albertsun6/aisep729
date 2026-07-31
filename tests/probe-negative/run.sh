@@ -200,6 +200,9 @@ expect "陷阱扫描/66 纯 BSD grep 环境下仍能抓到" 66 env PATH=/usr/bin
 
 # ---------- hooks 本地反馈（SPEC-15/16，M2-D）----------
 echo "-- hooks --"
+if [ ! -f "$ROOT/.claude/hooks/post-edit-lint.sh" ]; then
+  echo "  ⏭  跳过（本仓未配置 hooks）"
+else
 total=$((total+1))
 if printf '{"tool_input":{"file_path":"%s"}}' "$WORK/trap.sh" | bash "$ROOT/.claude/hooks/post-edit-lint.sh" >/dev/null 2>&1; then
   echo "  ❌ post-edit hook 未拦住含陷阱的文件"; fails=$((fails+1))
@@ -213,9 +216,16 @@ else
   echo "  ❌ post-edit hook 误伤干净文件"; fails=$((fails+1))
 fi
 
+fi
+
 # ---------- assess/adopt 契约（SPEC-12/13，M2-C）----------
-echo "-- e2e assess/adopt --"
+# 平台专属能力：业务项目由 e2e init 生成时不含 bin/e2e，此段自动跳过（不算失败）
 E2E_BIN="$ROOT/bin/e2e"
+if [ ! -x "$E2E_BIN" ]; then
+  echo "-- e2e assess/adopt --"
+  echo "  ⏭  跳过（本仓无 bin/e2e，属平台专属能力）"
+else
+echo "-- e2e assess/adopt --"
 LEG="$WORK/legacy"; mkdir -p "$LEG/src"
 ( cd "$LEG" && git init -q && git config user.email t@t && git config user.name t \
   && printf 'x=1\n' > src/a.py && printf '# 我的\n' > CLAUDE.md && git add -A && git commit -qm init ) >/dev/null 2>&1
@@ -241,6 +251,8 @@ if [ "$arc" = "2" ] && [ "$(md5 -q "$LEG/CLAUDE.md")" = "$md5_before" ] \
   echo "  ✅ adopt 非破坏（既有未覆盖 + 冲突入清单 + exit 2 + 能力层已复制）"
 else
   echo "  ❌ adopt 契约不符（exit=${arc}｜CLAUDE.md 变动或能力层未复制或冲突未记录）"; fails=$((fails+1))
+fi
+
 fi
 
 # ---------- ratchet 负样本（S5，独立脚本）----------
