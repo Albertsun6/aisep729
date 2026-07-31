@@ -639,7 +639,10 @@ on:
     branches: [main]
 
 env:
-  # 改成你的 feature 目录名（specs/<FEATURE>/）
+  # ⚠️ **必须改成你的 feature 目录名**（就是 specs/ 下那个目录的名字）。
+  # 不改会怎样：下面每个探针都去查 specs/<feature>/ 这个**不存在的目录**，
+  # 于是 CI 从第一步就红，而报错说的是"文件不存在"——看不出根因是这里没填。
+  # e2e-discovery 建出 specs/<你的名字>/ 之后，回来把这一行改掉。
   FEATURE: <feature>
 
 jobs:
