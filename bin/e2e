@@ -109,6 +109,7 @@ cmd_init() {
   copy_one  "scripts/check-clause-refs.sh" || true
   copy_one  "scripts/check-action-pins.sh" || true
   copy_one  "scripts/check-ai-review-contract.sh" || true
+  copy_one  "scripts/check-readme.sh" || true
   copy_one  "ops/check-branch-protection.sh" || true
   copy_one  "scripts/check-selfcontained.sh" || true
   copy_one  "scripts/ratchet.sh"           || true
