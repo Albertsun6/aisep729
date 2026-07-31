@@ -62,7 +62,8 @@ grep -qE "门禁④.*批准" "$dep" \
   || { echo "MISSING: 正文缺门禁④ 批准记录引用（SPEC-23：串锁要看得见）"; missing=$((missing+1)); }
 
 # ---- 退役类型：advisory / compulsory 二选一（finding #8：精确取值，不用子串）----
-tline=$(grep -E "^- \*\*类型\*\*：|^- 类型：" "$dep" | head -1 || true)
+# 同上：管道末端是 head，退出码恒 0，`|| true` 从不触发
+tline=$(grep -E "^- \*\*类型\*\*：|^- 类型：" "$dep" | head -1); : "${tline:=}"
 tval=$(printf '%s' "$tline" | sed -E 's/^- (\*\*)?类型(\*\*)?：[[:space:]]*//; s/[[:space:]（(｜|].*$//; s/`//g')
 rtype=""
 case "$tval" in
