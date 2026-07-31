@@ -31,6 +31,7 @@ WHITELIST=(
   "specs/platform-pilot/review.md"                          # F-10：描述插件卸载后的缓存残留位置
   "specs/platform-pilot/release.md"                         # PRR-9：说明插件卸载后的缓存残留位置
   "docs/runbooks/platform-pilot.md"                         # §回滚 不可逆点④：同上，需告知读者清理路径
+  "specs/platform-pilot/deprecation.md"                     # R-3/R-7：告知使用者插件缓存清理路径
 )
 
 in_whitelist() {
