@@ -549,6 +549,35 @@ else
   echo "  ✅ 门禁④ 接受合法值「批准」（rc=${rc2}，非决定值原因）"
 fi
 
+# ---------- review 探针：block 闭环检查按列解析（四向钉死）----------
+# 实测踩过：一条 severity=major / 状态=open 的 finding，因为问题描述里引用了
+# 代码片段 `blocks>0 → exit 1`，被整行 grep "block" 命中，误判为"未闭环的 block"。
+# 改按列后又踩第二个坑：两张表列数不同（9 列 / 8 列），$(NF-1) 取到的是证据列，
+# **真·block+open 反而漏了** —— 那是把门禁改松，比误报严重得多。
+# 最终改为「severity 列判 block + 任一字段精确等于状态机词」。四向全钉。
+echo "-- review 探针：block 闭环按列解析 --"
+BC="$WORK/blockclose/specs/x"; mkdir -p "$BC"
+printf -- '# TASKS\n\n- [x] T-1 done ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`\n' > "$BC/tasks.md"
+mk_bc() {
+  {
+    printf '# REVIEW：x\n\n## 定档结论\n\n- **风险档**：中\n\n'
+    printf '## 覆盖声明\n\n- **已审**：a\n- **未审及原因**：无\n\n## Findings\n\n'
+    printf '| ID | severity | source | 类型 | 定位 | 问题 | 状态 | 证据 |\n|---|---|---|---|---|---|---|---|\n%s\n\n' "$1"
+    printf '## 异构评审\n\n异构评审: unavailable(fixture)\n\n'
+    printf -- '---\n门禁③ 记录：\n- 批准人：tester\n- 决定：批准\n- 日期：2026-01-01\n- 备注：t\n'
+  } > "$BC/review.md"
+}
+CRV2="$ROOT/.claude/skills/e2e-review/scripts/check-review.sh"
+bc_case() {  # bc_case <说明> <期望命中:yes|no> <finding 行>
+  mk_bc "$3"; total=$((total+1))
+  if bash "$CRV2" "$BC/" --final 2>&1 | grep -q "未闭环"; then hit=yes; else hit=no; fi
+  if [ "$hit" = "$2" ]; then echo "  ✅ $1"; else echo "  ❌ $1（期望命中=$2，实得=$hit）"; fails=$((fails+1)); fi
+}
+bc_case "真·block+open 必须被抓（防改松）"          yes '| F-1 | block | deterministic | correctness | a:1 | x | open | - |'
+bc_case "加粗 severity + reopened 也要被抓"          yes '| F-2 | **block** | deterministic | correctness | a:1 | x | reopened | - |'
+bc_case "major/open 且描述含 blocks 不得误判"        no  '| F-3 | major | llm-advisory | security | a:1 | 描述含 `blocks>0 → exit 1` | open | - |'
+bc_case "block/fixed 不得误判"                       no  '| F-4 | block | deterministic | correctness | a:1 | x | fixed | `true` |'
+
 # ---------- review 探针：有 Findings 章节却抽到 0 条不得判 PASS ----------
 # 实测踩过：平台自举评审用 P-N 前缀写了 12 条 finding，探针只认 F-N，
 # 于是报「finding 0 条」并 PASS —— 所有 findings 相关检查（source 合法性、
