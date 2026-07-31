@@ -110,6 +110,7 @@ cmd_init() {
   gen_file "CLAUDE.md"        "$(tpl_claude_md)"
   gen_file "docs/constitution.md" "$(tpl_constitution)"
   gen_file "docs/glossary.md" "$(tpl_glossary)"
+  gen_file "docs/architecture/spine.md" "$(tpl_spine)"
   gen_file ".claude/settings.json" "$(tpl_settings)"
 
   echo
@@ -488,6 +489,18 @@ tpl_glossary() { cat <<'EOF'
 ## 阶段 3
 
 （随 e2e-implement 使用补充）
+
+## 阶段 4
+
+（随 e2e-review 使用补充）
+
+## 阶段 5
+
+（随 e2e-release 使用补充）
+
+## 阶段 6
+
+（随 e2e-retire 使用补充）
 EOF
 }
 
