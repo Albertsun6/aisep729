@@ -323,6 +323,16 @@ total=$((total+1))
 if [ "$rc" != 0 ]; then echo "  ✅ BP/非0 gh 不可用时不得静默通过（实际 ${rc}）"
 else echo "  ❌ BP 在 gh 不可用时 exit 0 —— 静默通过"; fails=$((fails+1)); fi
 
+# ---------- 陷阱扫描的 vendored 排除（不能把自己的文件也放过）----------
+# 起源：装了 node_modules 后探针开始扫第三方脚本并报错。第三方代码既不拥有也改不了，
+# 本探针查的是**我们自己**的编码约定。但"排除"极易滑成"整类放过"，故双向钉死。
+echo "-- check-shell-traps vendored 排除 --"
+STW="$WORK/traps-excl"; mkdir -p "$STW/scripts" "$STW/node_modules/pkg"
+printf '#!/usr/bin/env bash\ntimeout 5 x\n' > "$STW/node_modules/pkg/vendor.sh"
+expect "陷阱扫描/0 只有 node_modules 里有陷阱时放行" 0 bash "$ROOT/scripts/check-shell-traps.sh" "$STW"
+printf '#!/usr/bin/env bash\ntimeout 5 x\n' > "$STW/scripts/ours.sh"
+expect "陷阱扫描/66 我们自己的文件有陷阱仍必抓" 66 bash "$ROOT/scripts/check-shell-traps.sh" "$STW"
+
 # ---------- SPEC-24 smoke：手册教的每条命令在新项目里必须真实可跑 ----------
 # 起源：手册与 init 的"下一步"提示都让用户在自己项目里跑 `e2e doctor`，
 # 但 bin/e2e 从未被发到目标仓 —— 新用户照做即 command not found。
@@ -360,8 +370,13 @@ INNER
   else
     echo "  ❌ 新项目里 doctor 跑不起来（init 的"下一步"提示是假的）"; fails=$((fails+1))
   fi
+elif [ -f "$ROOT/bin/e2e" ] && [ -d "$ROOT/specs/platform-pilot" ]; then
+  # 平台仓本该有手册却没有 —— 这是真缺失，必须响亮失败
+  total=$((total+1)); echo "  ❌ 平台仓缺手册 $MAN"; fails=$((fails+1))
 else
-  total=$((total+1)); echo "  ❌ 找不到手册 $MAN"; fails=$((fails+1))
+  # 业务仓不含手册（手册是平台仓交付物，不随脚手架分发）—— 属平台专属能力，
+  # 与 bin/e2e 同一处理方式。判据是"本仓有没有这个能力"，不是"找不到就算了"。
+  echo "  ⏭  跳过（本仓无实施手册，属平台专属交付物）"
 fi
 
 # ---------- 门禁台账：决定值非法必须被抓（fail-open 修复回归）----------
