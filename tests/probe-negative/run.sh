@@ -430,6 +430,34 @@ else
   echo "  ❌ 注入型 E2E_PR 未被拦（参数注入复发）"; fails=$((fails+1))
 fi
 
+# ---------- init 幂等性：第二次跑不得覆盖用户修改（冷启动验收 blocker）----------
+# 起源：copy_tree 旧实现是 `cp -R "$src/." "$dst/"` **整目录无条件覆盖**，
+# 于是 `e2e init` 第二次跑会静默清除用户对 skill/agent/hook/lib/stages 的**全部修改**，
+# 而工具还打印「⚠️ 冲突项已保留原文件（SPEC-10 幂等安全）」—— **给出的是相反的保证**。
+# 「改了 skill → 想升级平台 → 再跑一次 init」是完全自然的路径，代价是丢工作。
+echo "-- init 幂等性（第二次跑不得覆盖）--"
+IDW="$WORK/idempotent"; mkdir -p "$IDW"
+bash "$ROOT/bin/e2e" init "$IDW" >/dev/null 2>&1
+# 在五个曾被整目录覆盖的位置各留一处标记
+for m in ".claude/skills/e2e-discovery/SKILL.md" ".claude/agents/reviewer.md" \
+         ".claude/hooks/stop-verify.sh" "scripts/lib/gate.sh" "docs/process/stages/stage-0-discovery.md"; do
+  [ -f "$IDW/$m" ] && printf '\n# IDEMPOTENT-PROBE-MARK\n' >> "$IDW/$m"
+done
+bash "$ROOT/bin/e2e" init "$IDW" >/dev/null 2>&1
+lost=0
+for m in ".claude/skills/e2e-discovery/SKILL.md" ".claude/agents/reviewer.md" \
+         ".claude/hooks/stop-verify.sh" "scripts/lib/gate.sh" "docs/process/stages/stage-0-discovery.md"; do
+  if [ -f "$IDW/$m" ] && ! grep -q 'IDEMPOTENT-PROBE-MARK' "$IDW/$m"; then
+    echo "  ❌ 第二次 init 覆盖了用户修改：${m}"; lost=$((lost + 1))
+  fi
+done
+total=$((total+1))
+if [ "$lost" -eq 0 ]; then
+  echo "  ✅ 五处用户修改在第二次 init 后全部保留"
+else
+  echo "  ❌ ${lost} 处用户修改被静默清除 —— 而工具声称「已保留原文件」"; fails=$((fails+1))
+fi
+
 # ---------- README 门面（公开仓第一眼）----------
 # 起源：仓已公开且挂在插件市场邀请安装，却**没有 README** —— 别人点开什么导航都没有。
 # 这个洞自建者永远发现不了（他知道所有文件在哪），是典型的"只有外人能看见"的缺陷。

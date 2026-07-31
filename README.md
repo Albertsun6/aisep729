@@ -42,7 +42,7 @@
 | 评审 agent | **3** | architect（架构预审）/ reviewer（内环）/ security（安全） |
 | hook | **2** | 改完文件即时 lint · 收工前强制验证 |
 | 探针 | **10** | 结构 / 自包含 / bash 陷阱 / skill 依赖 / 宪法条款 / Action 钉版 / 手册结构 / 视频判据 / AI 评审契约 / 服务端门禁行为证明 |
-| **负样本** | **75** | **探针自身能否被证伪** —— 这是本项目最重要的数字 |
+| **负样本** | **81** | **探针自身能否被证伪** —— 这是本项目最重要的数字。口径 = `bash tests/probe-negative/run.sh` 的分母，**跑一下就能核对** |
 | 工程宪法 | 15 条 | 不可妥协原则，每条含可执行检查 |
 | ADR | 15 份 | 每个决策含 ≥2 个真实备选 |
 
@@ -78,23 +78,34 @@ bash scripts/check-skill-deps.sh && bash scripts/check-clause-refs.sh && bash te
 
 ---
 
-## ⚠️ 另一条路：插件市场（**只给能力层，没有门禁**）
+## ⚠️ 另一条路：插件市场（**装了也没有门禁**）
 
 ```bash
 claude plugin marketplace add Albertsun6/aisep729
 claude plugin install e2e-platform@aisep729-e2e
 ```
 
-**装完你拿到 7 个 skill + 3 个 agent + 2 个 hook，但拿不到任何探针。**
-`bin/e2e`、`scripts/check-*.sh`、`tests/probe-negative/` **都不在插件里**。
-skill 会照常引导流程，但每一步的"验证"环节**无法执行**。
+装完你拿到 **7 个 skill + 3 个 agent**，它们会照常引导你走六段流程。
+**但门禁跑不起来**，原因比"没带探针"更微妙 —— 冷启动验收实测：
 
-**不要**把"装了插件"等同于"接入了平台"。要门禁走上面的 `e2e init`。
+| 事实 | 说明 |
+|---|---|
+| 7 个阶段探针**确实被带走了** | 它们就住在 `.claude/skills/*/scripts/` 里，而插件源是 `.claude` |
+| 但它们**跑不起来** | 每个都 `source` 仓内的 `scripts/lib/gate.sh`，而 `scripts/` **不在插件里** |
+| `bin/e2e`、平台探针、负样本套件 | 同样不在插件里 |
+| 两个 hook | 靠 `.claude/settings.json` 注册，那是**项目设置**不是插件机制，**不会自动生效** |
+
+跑到那一步时探针会明确告诉你怎么办（不是一句 bash 报错）：
+
+```
+FAIL(65): 找不到 scripts/lib/gate.sh —— 本探针需要完整平台才能运行。
+  最可能的原因：你是通过 `claude plugin install` 装的。
+  要用门禁，请改用完整安装：git clone … && bash aisep729/bin/e2e init <你的项目>
+```
+
+**所以**：插件适合"我只想要那套 SOP 引导"；**要门禁就走上面的 `e2e init`**。
+两条路**别同时用**——会出现同名 skill，解析优先级未验证。
 详见 [ADR-015](./docs/architecture/adr/ADR-015-plugin-marketplace-distribution.md)。
-
-两条路**建议二选一**：同时用会出现同名 skill，解析优先级未验证。
-
----
 
 ## 看一眼实际效果
 

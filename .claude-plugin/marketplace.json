@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "e2e-platform",
-      "description": "七个阶段 skill（立项/需求/设计/实现/评审/发布/退役）+ 三个评审 agent + 两个 hook + 全套探针与 58 条负样本。门禁串锁：每阶段第 0 步硬校验上游门禁，不过即拒绝启动。",
+      "description": "七个阶段 skill（立项/需求/设计/实现/评审/发布/退役）+ 三个评审 agent。⚠️ 本插件**只分发能力层**：不含 bin/e2e、不含平台探针与负样本套件，各阶段 skill 自带的门禁探针在插件模式下**无法运行**（它们依赖仓内 scripts/lib/）。要完整门禁请 git clone 仓库后跑 bash bin/e2e init <你的项目>。",
       "author": {
         "name": "Albertsun6"
       },
@@ -18,7 +18,7 @@
         "url": "https://github.com/Albertsun6/aisep729.git",
         "path": ".claude",
         "ref": "main",
-        "sha": "8306a8bd9c0fda69fd3f54fb0b30a67089b32721"
+        "sha": "33893e46e2d41b385b8362abe0f1c9d91f668186"
       }
     }
   ]

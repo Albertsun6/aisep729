@@ -81,7 +81,35 @@ else
   echo "  ✅ ${nc} 条命令全部指向真实文件"
 fi
 
-# ---- ④ 必须有「已知限制」段（门面不许只说好话）----
+# ---- ④ 声称的负样本条数必须等于实跑值 ----
+# 冷启动验收 blocker：README 把负样本数称为「这是本项目最重要的数字」，
+# 而这个数字在 6 个地方是 6 个值（README 75 / USAGE 71 / marketplace 58 /
+# 手册 56 / release.md 66 / 实跑 80），没有一个对。
+# 一个把「可证伪断言」当立身之本的项目，最重要的那个数字自己没被任何断言钉住。
+# 本探针只钉这一个数字 —— 因为它是被明确标注为「最重要」的那个。
+echo "-- 负样本条数对账 --"
+if [ -x tests/probe-negative/run.sh ] || [ -f tests/probe-negative/run.sh ]; then
+  actual=$(bash tests/probe-negative/run.sh 2>/dev/null | tail -1 | grep -oE '[0-9]+/[0-9]+' | cut -d/ -f2)
+  : "${actual:=}"
+  if [ -z "$actual" ]; then
+    echo "  ❌ 跑不出实际条数 —— 无法对账（fail-closed）"; bad=$((bad+1))
+  else
+    claimed=$(grep -oE '\*\*负样本\*\* \| \*\*[0-9]+\*\*' "$R" | grep -oE '[0-9]+' | head -1)
+    : "${claimed:=}"
+    if [ -z "$claimed" ]; then
+      echo "  ⚠️  README 未声称负样本条数，跳过对账"
+    elif [ "$claimed" = "$actual" ]; then
+      printf '  ✅ 负样本条数对账一致：%s\n' "$actual"
+    else
+      printf '  ❌ README 声称 %s 条，实跑 %s 条 —— 最重要的数字自己对不上账\n' "$claimed" "$actual"
+      bad=$((bad+1))
+    fi
+  fi
+else
+  echo "  ⚠️  无 tests/probe-negative/run.sh，跳过对账"
+fi
+
+# ---- ⑤ 必须有「已知限制」段（门面不许只说好话）----
 if grep -qE '^#+ .*(已知限制|Known [Ll]imitations)' "$R"; then
   seg=$(awk '/^#+ .*(已知限制|Known [Ll]imitations)/{f=1;next} /^#+ /{if(f)exit} f' "$R" \
         | grep -vcE '^[[:space:]]*$' || true); : "${seg:=0}"
