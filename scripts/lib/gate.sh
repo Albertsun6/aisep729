@@ -103,3 +103,37 @@ gate_require() {
   printf 'FAIL(64): 门禁未通过（当前=%s，需要=%s）——拒绝进入本阶段\n' "$d" "$*"
   return 64
 }
+
+# gate_assert_filled <制品> <模板>：制品不得是「原封不动的模板」
+#
+# 冷启动验收 MAJOR：check-prfaq.sh 对**一字未改的模板副本**判 PASS（exit 0）。
+# 于是门禁⓪的探针可以被一份没人填过的空模板通过 —— 结构齐全，内容全是占位符。
+# 这不是理论风险：抄模板正是最自然的起手式，忘了填就交是常态。
+#
+# 判据用**实测**定的，不是拍脑袋（数的是模板里带 <占位符> 的行有多少还原样留着）：
+#   platform-pilot/prfaq.md（真实）  0/23 =   0%
+#   win-loss-log/prfaq.md（真实）    0/23 =   0%
+#   只填了 5 个槽                   18/23 =  78%  ← 必须拦
+#   一字未改的模板                  23/23 = 100%  ← 必须拦
+# 阈值取 25%：距两份真实产物有 25 个点的余量，且容得下"待批时门禁决定行
+# 合法地留着 <待填>"这种情况。
+gate_assert_filled() {
+  local art="${1:-}" tpl="${2:-}"
+  [ -f "$art" ] || { echo "FAIL(65): 制品不存在: $art" >&2; return 65; }
+  [ -f "$tpl" ] || { echo "FAIL(66): 找不到模板 ${tpl} —— 无法判定是否原样照抄，拒绝 PASS" >&2; return 66; }
+  local slots left pct
+  slots=$(grep -E '<[^>]+>' "$tpl" | grep -cvE '^[[:space:]]*$' || true); : "${slots:=0}"
+  # 模板里一个占位符都没有 = 判据失效，必须响亮而不是静默放行
+  [ "$slots" -ge 3 ] || { echo "FAIL(66): 模板 ${tpl} 只有 ${slots} 个占位符行 —— 判据失效，拒绝 PASS" >&2; return 66; }
+  left=$(grep -E '<[^>]+>' "$tpl" | grep -vE '^[[:space:]]*$' | grep -Fxf - "$art" 2>/dev/null | grep -c . || true)
+  : "${left:=0}"
+  pct=$(( left * 100 / slots ))
+  if [ "$pct" -gt 25 ]; then
+    printf 'FAIL(66): %s 有 %s/%s（%s%%）个占位符行**一字未改** —— 这是没填的模板，不是制品\n' \
+      "$art" "$left" "$slots" "$pct" >&2
+    grep -E '<[^>]+>' "$tpl" | grep -vE '^[[:space:]]*$' | grep -Fxf - "$art" 2>/dev/null | head -5 | sed 's/^/     未填: /' >&2
+    return 66
+  fi
+  printf '  ✅ 非模板照抄（%s/%s 占位符未动，阈值 25%%）\n' "$left" "$slots"
+  return 0
+}

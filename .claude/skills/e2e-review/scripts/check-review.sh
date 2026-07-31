@@ -86,7 +86,9 @@ if grep -qE "false-positive|accepted-risk" "$review"; then
 fi
 
 # ---- 环境留痕：防重跑到过 ----
-runs=$(grep -oE "评审运行次数：\s*[0-9]+" "$review" | grep -oE "[0-9]+" | head -1 || echo "")
+# `| head -1 || echo ""` 里的 || 是**死代码**：head 永远退 0，兜底从不触发（实测证实）。
+# 留着比删掉更危险——它长得像个守卫，会让人以为这里有兜底。
+runs=$(grep -oE "评审运行次数：\s*[0-9]+" "$review" | grep -oE "[0-9]+" | head -1); : "${runs:=}"
 if [ -n "$runs" ] && [ "$runs" -gt 1 ]; then
   grep -qE "重跑|原因" "$review" || { echo "MISSING: 评审运行 ${runs} 次但未说明原因（禁止重跑到过）"; missing=$((missing+1)); }
 fi

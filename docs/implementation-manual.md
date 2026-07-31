@@ -437,10 +437,13 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
 - **只有一个人跑过**。全部验证来自自建者 + AI 评审，**没有真人冷启动验证**。
   正式交付前应找人照本手册从零跑一遍 —— 他卡在哪，哪就是手册的洞。
 - **"自举"的准确口径（别信含糊的说法，包括我们自己的）**：
-  平台仓 19 个 commit 中**只有 3 个经过 PR 门禁**——因为分支保护是**建到后期才配上的**，
-  在那之前全部是直推 main。诚实的表述是
-  **「配上门禁之后的改动全部走了门禁」**，不是"全程自举"。
-  可自行核实：`gh pr list --state merged` 对比 `git rev-list --count main`。
+  平台仓**早期的 commit 全部是直推 main**——因为分支保护是**建到后期才配上的**。
+  诚实的表述是**「配上门禁之后的改动全部走了门禁」**，不是"全程自举"。
+  **这里刻意不写死"N 个 commit 中 M 个走了门禁"**：那种数字每提交一次就过期一次，
+  而过期的数字比没有数字更伤信任——本手册的前一版就写着早已不成立的 19/3。
+  要看当下的真实比例，自己跑这两条：
+  `gh pr list --state merged --limit 200 --json number --jq 'length'`（走了门禁的）
+  对比 `git rev-list --count main`（全部）。
   这条限制会随时间自然消解，但**在它消解前不得含糊**。
 
 ### 7.1b 文本门禁台账**不是防伪凭证**（安全评审 critical，必读）
@@ -467,7 +470,14 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
 真正的解决是把批准移到服务端 review 事件，文件里只留引用。
 在做到那一步之前，**任何对外材料都不得把文本台账说成"审批凭证"**。
 
-### 7.2 macOS bash 高危写法清单（全部已固化为 `check-shell-traps.sh`）
+### 7.2 macOS bash 高危写法清单（7 条里 **6 条**已固化为 `check-shell-traps.sh`）
+
+> **口径**：#1 #2 #4 #5 #6 #7 由探针拦截（可自行改一行代码验证它会红）。
+> **只有 #3 没有静态实现，且有意不做**：`grep -r --include "$x"` 里的 `$x`
+> 是文件还是目录只有运行时才知道；靠猜上下文的启发式**猜错时会静默放行**，
+> 那正是本探针要防的东西。#3 改由 `check-shell-traps.sh` 自己的 `scan()`
+> 在实现里规避（先判 `-f` 再决定用 `grep -n` 还是 `grep -r`）。
+> 上一版这里写的是"全部已固化"——那是**夸大**，已按实测改正。
 
 | # | 高危写法 | 后果 | 正确写法 |
 |---|---|---|---|
@@ -511,7 +521,7 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
 |---|---|
 | 平台版本 | `0.1.0-M1`（`bin/e2e version`） |
 | 实测环境 | macOS（Darwin 25.5.0）、bash 3.2.57、BSD grep |
-| 验证基线 | 负样本 **83/83**；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
+| 验证基线 | 负样本 **92/92**；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
 | gitleaks | 8.30.1（两仓全历史 0 leaks） |
 | 门禁行为证明 | 两仓 `ops/check-branch-protection.sh` 均 CONFIRMED |
 | Action pin | `actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`（v5） |

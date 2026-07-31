@@ -85,6 +85,48 @@ if [ -n "$t3" ]; then
   hits=$((hits + $(printf '%s\n' "$t3" | grep -c .)))
 fi
 
+# 陷阱4（表 #2）：grep -P —— BSD grep 不支持 PCRE。
+# 危害是**最阴的一类**：配上 `2>/dev/null || true` 之后它永远返回空，
+# 于是探针"永远 PASS"。实测踩过：一条本该拦人的检查静默失效了整整两天。
+t4=$(scan '(^|[^a-zA-Z0-9_./-])grep[[:space:]]+(-[a-zA-Z]*P|--perl-regexp)' \
+     | grep -v "check-shell-traps.sh" | grep -vE '(^|:)[0-9]+:[[:space:]]*#' \
+     | grep -v 'shell-traps:ok' || true)
+if [ -n "$t4" ]; then
+  echo "❌ 陷阱4：grep -P 在 macOS BSD grep 上不支持——改用 ERE（grep -E）+ LC_ALL=C"
+  echo "   最危险的地方：配上 2>/dev/null || true 后它**永远返回空**，检查静默失效"
+  printf '%s\n' "$t4" | sed 's/^/   /'
+  hits=$((hits + $(printf '%s\n' "$t4" | grep -c .)))
+fi
+
+# 陷阱5（表 #5）：`n=$(... | grep -c ...) || echo 0` 之类的"兜底"
+# grep -c 无匹配时**已经输出了 0**，但退出码是 1 → `|| echo 0` 再追加一行 0，
+# 变量成了两行 "0\n0"，后续 [ "$n" -gt 0 ] 直接语法崩。
+# 正确：n=$(...); : "${n:=0}"
+t5=$(scan 'grep[[:space:]]+-[a-zA-Z]*c[a-zA-Z]*[^|]*\)[[:space:]]*\|\|[[:space:]]*echo' \
+     | grep -v "check-shell-traps.sh" | grep -vE '(^|:)[0-9]+:[[:space:]]*#' \
+     | grep -v 'shell-traps:ok' || true)
+if [ -n "$t5" ]; then
+  echo "❌ 陷阱5：\$(… grep -c …) || echo 0 —— grep -c 已输出 0，|| 会再追加一行"
+  echo "   结果是两行的 \"0\\n0\"，后续整数比较直接崩。改：n=\$(…); : \"\${n:=0}\""
+  printf '%s\n' "$t5" | sed 's/^/   /'
+  hits=$((hits + $(printf '%s\n' "$t5" | grep -c .)))
+fi
+
+# 陷阱6（表 #7）：管道之后取 $? / 用 || 兜底 —— 拿到的是**末端**命令的退出码。
+# 实测踩过：`md5 -q "$f" | cut -c1-12 || md5sum ...` —— 退出码来自 cut（永远 0），
+# 于是 md5 不存在时 fallback **永不触发**，指纹静默为空。
+# 只报"管道 + || 兜底"这一种可判定的形态；裸 $? 的上下文判定不可靠，不猜。
+t6=$(scan '\|[[:space:]]*(cut|head|tail|tr|awk|sed)[[:space:]][^|]*\|\|[[:space:]]*[a-zA-Z]' \
+     | grep -v "check-shell-traps.sh" | grep -vE '(^|:)[0-9]+:[[:space:]]*#' \
+     | grep -v 'shell-traps:ok' || true)
+if [ -n "$t6" ]; then
+  echo "❌ 陷阱6：管道后接 || 兜底——退出码来自**管道末端**命令，兜底永不触发"
+  echo "   实测：md5 -q f | cut … || md5sum … 里 md5 缺失时 fallback 从不执行，指纹静默为空"
+  echo "   改：先 command -v 探测，或 set -o pipefail 后分步取值"
+  printf '%s\n' "$t6" | sed 's/^/   /'
+  hits=$((hits + $(printf '%s\n' "$t6" | grep -c .)))
+fi
+
 if [ "$hits" -gt 0 ]; then
   echo "FAIL(66): $hits 处高危写法"
   exit 66

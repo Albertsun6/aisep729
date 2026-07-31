@@ -198,6 +198,23 @@ expect "陷阱扫描/66 单文件负样本（BSD grep 也须抓到）" 66 bash "
 # 强制用 BSD grep（去掉可能的 GNU grep 路径）复测——这是"别人的干净 macOS"的真实情形
 expect "陷阱扫描/66 纯 BSD grep 环境下仍能抓到" 66 env PATH=/usr/bin:/bin bash "$ROOT/scripts/check-shell-traps.sh" "$WORK/trap.sh"
 
+# 陷阱 4/5/6（手册 §7.2 表 #2/#5/#7）：从"文档里写着"变成"探针真的拦"。
+# 手册上一版称 7 条**全部已固化**，实际只实现了 3 条 —— 这三条补齐并在此钉死。
+# 坏样本一律拼接生成，否则扫描器会（正确地）把本文件也判为含陷阱。
+{ printf '#!/usr/bin/env bash\n'; printf 'grep %sP "x" f\n' '-'; } > "$WORK/trap4.sh"
+expect "陷阱4/66 grep -P（BSD 不支持，配 ||true 则永远 PASS）" 66 bash "$ROOT/scripts/check-shell-traps.sh" "$WORK/trap4.sh"
+
+{ printf '#!/usr/bin/env bash\n'; printf 'n=$(grep %sc . f) %s echo 0\n' '-' '||'; } > "$WORK/trap5.sh"
+expect "陷阱5/66 grep -c 后 || echo 0（会追加出第二行）" 66 bash "$ROOT/scripts/check-shell-traps.sh" "$WORK/trap5.sh"
+
+# "md5""sum" 也要拼接：整词写出来会被陷阱3（GNU 命令）命中，那就测不到陷阱6 了
+{ printf '#!/usr/bin/env bash\n'; printf 'x=$(md5 -q f %s cut -c1-8 %s md5%s f)\n' '|' '||' 'sum'; } > "$WORK/trap6.sh"
+expect "陷阱6/66 管道后 || 兜底（退出码来自末端，兜底永不触发）" 66 bash "$ROOT/scripts/check-shell-traps.sh" "$WORK/trap6.sh"
+
+# **双向**：正确写法必须放行，否则规则只会误伤（|| true 里的 true 不得被当成 tr 命令）
+{ printf '#!/usr/bin/env bash\n'; printf 'n=$(grep %sc . f %s true); : "${n:=0}"\n' '-' '||'; } > "$WORK/trap-ok.sh"
+expect "陷阱4-6/0 正确写法必须放行（true 不得被误判为 tr）" 0 bash "$ROOT/scripts/check-shell-traps.sh" "$WORK/trap-ok.sh"
+
 # ---------- hooks 本地反馈（SPEC-15/16，M2-D）----------
 echo "-- hooks --"
 if [ ! -f "$ROOT/.claude/hooks/post-edit-lint.sh" ]; then
@@ -753,6 +770,46 @@ SD_BROKEN="$WORK/check-skill-deps-broken.sh"
 sed -E "s|^PATH_RE=.*|PATH_RE='__NEVER_MATCHES_ANYTHING__'|" \
     "$ROOT/scripts/check-skill-deps.sh" > "$SD_BROKEN"
 expect "SD/66 生产正则被改坏时金丝雀必须报警（而非静默 PASS）" 66 bash "$SD_BROKEN" "$ROOT"
+
+# ---------- 制品不得是没填的模板（冷启动 MAJOR：门禁⓪ fail-open）----------
+# 起源：check-prfaq.sh 对**一字未改的模板副本**判 PASS —— 门禁⓪ 可以被
+# 一份没人填过的空模板通过（结构齐全、内容全是占位符）。
+# 抄模板正是最自然的起手式，忘了填就交是常态，不是理论风险。
+echo "-- 制品不得是没填的模板 --"
+PF="$ROOT/.claude/skills/e2e-discovery/scripts/check-prfaq.sh"
+PT="$ROOT/.claude/skills/e2e-discovery/templates/prfaq-template.md"
+if [ -f "$PF" ] && [ -f "$PT" ]; then
+  FW="$WORK/filled"; mkdir -p "$FW"
+  cp "$PT" "$FW/verbatim.md"
+  expect "填充/66 一字未改的模板必须被拒" 66 bash "$PF" "$FW/verbatim.md"
+
+  # 只填 5 个槽（实测 78% 未动）—— 半成品同样不算制品
+  awk '/<[^>]+>/ && n<5 { gsub(/<[^>]+>/, "（已认真填写的真实内容）"); n++ } { print }' \
+      "$PT" > "$FW/half.md"
+  expect "填充/66 只填了少数槽的半成品必须被拒" 66 bash "$PF" "$FW/half.md"
+
+  # 填满所有槽 = 真实产物，必须放行（**双向**：只会拒不会放 = 探针没用）。
+  # 这里就地由模板生成，**不引用 specs/platform-pilot/**：本套件会随脚手架发到客户仓，
+  # 依赖平台自己的产物会让客户那边直接红（check-adopt-parity 当场抓到过这个回归）。
+  # 门禁决定行要留着 <待填>：它是**合法**的待批值，替换掉会变成非法决定值（另一条检查会红）
+  awk '{ if ($0 !~ /决定/) gsub(/<[^>]+>/, "（已认真填写的真实内容）"); print }' "$PT" > "$FW/real.md"
+  expect "填充/0 槽位填满的制品必须放行" 0 bash "$PF" "$FW/real.md"
+
+  # 判据失效时 fail-closed：模板没了 / 模板没有足够占位符，都不许静默 PASS
+  # mutant 必须放在**与真实探针同样的相对深度**上，否则它先死在
+  # "找不到 scripts/lib/gate.sh"（exit 65）—— 那就没测到判据本身。
+  FR="$FW/fakeroot"; SKD="$FR/.claude/skills/e2e-discovery"
+  mkdir -p "$SKD/scripts" "$SKD/templates" "$FR/scripts/lib"
+  cp "$ROOT/scripts/lib/gate.sh" "$FR/scripts/lib/gate.sh"
+  sed 's|\.\./templates/prfaq-template\.md|../templates/__不存在__.md|' "$PF" > "$SKD/scripts/check-prfaq.sh"
+  expect "填充/66 模板缺失时拒绝判定（不得静默放行）" 66 bash "$SKD/scripts/check-prfaq.sh" "$FW/real.md"
+
+  printf '# 标题\n正文没有占位符\n' > "$SKD/templates/thin.md"
+  sed 's|\.\./templates/prfaq-template\.md|../templates/thin.md|' "$PF" > "$SKD/scripts/check-prfaq2.sh"
+  expect "填充/66 模板占位符过少时拒绝判定" 66 bash "$SKD/scripts/check-prfaq2.sh" "$FW/real.md"
+else
+  echo "  ⚠️  跳过：无 check-prfaq.sh 或模板"
+fi
 
 # ---------- adopt/init 能力层对等（冷启动 blocker 回归）----------
 # 起源：cmd_adopt 自己维护了一份平行清单，随平台加探针而漂移，最终比 init 少 12 个文件

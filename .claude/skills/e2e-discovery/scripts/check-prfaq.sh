@@ -28,6 +28,10 @@ NOLIB
 fi
 . "$_root/scripts/lib/gate.sh" || { echo "FAIL(65): scripts/lib/gate.sh 存在但加载失败" >&2; exit 65; }
 
+# 制品不得是一字未改的模板（冷启动 MAJOR：曾对模板原样副本判 PASS）
+_tpl="$(dirname "$0")/../templates/prfaq-template.md"
+gate_assert_filled "$f" "$_tpl" || exit $?
+
 required=(
   "## 假设陈述"
   "## 最险假设"
