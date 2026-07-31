@@ -51,6 +51,9 @@ jobs:
       - name: AI 评审三通道契约（LLM 不得有阻断权）
         run: bash scripts/check-ai-review-contract.sh
 
+      - name: 插件市场 sha 时效（钉住旧版本比不钉更危险）
+        run: bash scripts/check-marketplace-sha.sh
+
       - name: README 门面（链接/命令/已知限制）
         run: bash scripts/check-readme.sh
 

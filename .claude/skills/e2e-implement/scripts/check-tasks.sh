@@ -8,7 +8,25 @@ spec="$dir/spec.md"; tasks="$dir/tasks.md"
 
 # ---- 门禁解析公共库(SPEC-5：单一实现) ----
 _root=$(cd "$(dirname "$0")/../../../.." && pwd)
-. "$_root/scripts/lib/gate.sh" || { echo "FAIL(65): 无法加载 scripts/lib/gate.sh"; exit 65; }
+# 插件模式下 scripts/lib/ 不在分发范围内（source.path 只有 .claude）——
+# 冷启动验收实测：4 个探针死在 bash 的 "No such file"，对用户毫无意义。
+# 现在：抑制 bash 噪音，给出**能照做**的提示。
+if [ ! -f "$_root/scripts/lib/gate.sh" ]; then
+  cat >&2 <<'NOLIB'
+FAIL(65): 找不到 scripts/lib/gate.sh —— 本探针需要**完整平台**才能运行。
+
+  最可能的原因：你是通过 `claude plugin install` 装的。
+  插件只分发 .claude/ 能力层，**不含** bin/e2e、scripts/lib/、平台探针与负样本套件。
+
+  要用门禁，请改用完整安装：
+    git clone https://github.com/Albertsun6/aisep729.git
+    bash aisep729/bin/e2e init <你的项目>
+
+  详见 docs/architecture/adr/ADR-015-plugin-marketplace-distribution.md
+NOLIB
+  exit 65
+fi
+. "$_root/scripts/lib/gate.sh" || { echo "FAIL(65): scripts/lib/gate.sh 存在但加载失败" >&2; exit 65; }
 
 # ---- 门禁② 前置 ----
 gate_require "$spec" 批准 || exit 64

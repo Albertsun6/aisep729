@@ -53,7 +53,7 @@
 | `scripts/check-action-pins.sh` | 第三方 Action 必须 SHA-pin（C15） | 0/1/66 |
 | `scripts/check-manual.sh` | 实施手册结构 + **夸大表述自查**（SPEC-24） | 0/65/66 |
 | `scripts/check-demo-video.sh` | 演示视频交付判据（SPEC-25），**实测音量判静音** | 0/1/66 |
-| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**71 条**负样本） | 0/1 |
+| `tests/probe-negative/run.sh` | 上述探针**自身能否被证伪**（**81 条**负样本，口径见 README） | 0/1 |
 | `.claude/skills/*/scripts/check-*.sh` | 各阶段制品结构 + 上游门禁串锁 | 0/64/65/66 |
 
 ### `check-shell-traps.sh` 拦的三类写法
