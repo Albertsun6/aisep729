@@ -50,6 +50,24 @@ gate_status() {
   esac
 }
 
+# gate_assert_legal <file> <合法值...>：校验**本文件自己**的门禁决定值合法
+#
+# 为什么必须有（实测事故）：7 个阶段探针里 6 个只用 gate_status **显示**决定值，
+# 从不校验它是否属于契约集合。于是门禁④ 被填成"放行"（契约是 批准/打回）后
+# `check-release.sh --final` 判 PASS 放行，直到门禁⑤ 入口才炸
+# （`当前=放行，需要=批准`）。这是台账层的 fail-open：写错一个词能过自己那道门。
+# 与 gate_require 的区别：gate_require 校验**上游**门禁（串锁），本函数校验**自己**。
+# PENDING（待人批）合法——探针在非 --final 模式下允许待批状态。
+gate_assert_legal() {
+  local f="${1:-}"; shift
+  local d; d=$(gate_decision "$f")
+  [ "$d" = "PENDING" ] && return 0
+  [ "$d" = "UNKNOWN" ] && { printf 'MISSING: 门禁块缺失或格式异常\n'; return 1; }
+  for want in "$@"; do [ "$d" = "$want" ] && return 0; done
+  printf 'MISSING: 门禁决定值非法："%s"（契约只认：%s）——写错一个词就能过自己那道门\n' "$d" "$*"
+  return 1
+}
+
 # gate_require <file> <合法值...>：满足返回 0，否则打印 FAIL(64) 并返回 64
 gate_require() {
   local f="${1:-}"; shift

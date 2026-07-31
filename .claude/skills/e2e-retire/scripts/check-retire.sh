@@ -106,6 +106,8 @@ if [ -n "$gate5_owner" ] && [ "$gate5_owner" != "<待填>" ]; then
     && { echo "MISSING: 门禁⑤ 批准人非人类署名（\"${gate5_owner}\"）——宪法 C14 执行者不得自批"; missing=$((missing+1)); }
 fi
 
+# 门禁台账 fail-open 修复：校验本文件自己的决定值合法（gate.sh 单一实现）
+gate_assert_legal "$dep" 批准 打回 || missing=$((missing+1))
 gate5=$(gate_status "$dep")
 [ "$missing" -gt 0 ] && { echo "FAIL(66): 缺 ${missing} 项"; exit 66; }
 echo "PASS: deprecation 结构完整 | 类型=${rtype:-未知} | 完成核对 ${rn} 项 | 门禁⑤=${gate5}"

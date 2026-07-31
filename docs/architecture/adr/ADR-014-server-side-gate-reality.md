@@ -22,6 +22,34 @@ S6 spike 要回答：这个前提在真实环境里成立吗？成立的**入场
 | S6-c | 打开 `enforce_admins` 后直推 main 被拒 | ✅ **CONFIRMED** | `! [remote rejected] s6-probe -> main (protected branch hook declined)` |
 | S6-d | 单人仓设 `approvals=0` 后 PR 可合并（**本 ADR 初稿自己开的方子**） | ❌ **REFUTED** | 四检查全 SUCCESS、approvals=0，PR 仍 `mergeStateStatus: BLOCKED`。A/B 对照：`require_last_push_approval=false` → `CLEAN`；改回 `true` → `BLOCKED` |
 
+## 官方文档查证（2026-07-31 补，实测之后才做——顺序反了，教训见文末）
+
+实测拿到结论后回查官方文档与社区，**三条陷阱里两条文档根本没写**——这正是它们咬人的原因：
+
+| 陷阱 | 官方文档口径 | 差距 |
+|---|---|---|
+| ① 免费账号私有仓无分支保护 | ✅ **明确写了**：「Protected branches are available in public repositories with GitHub Free…, and in **public and private** repositories with GitHub **Pro/Team/Enterprise**」（[REST 分支保护文档](https://docs.github.com/en/rest/branches/branch-protection)） | 无差距，是我没先读文档 |
+| ② `enforce_admins` 默认 false | ⚠️ 只描述功能（"Enforce all configured restrictions for administrators"），**不声明默认值** | **文档缺口**：默认值只能实测得知，而它决定门禁是真是假 |
+| ③ `require_last_push_approval` 在 `approvals=0` 时仍死锁 | ⚠️ 只说 default false 与用途（"the most recent push must be approved by someone other than the person who pushed it"），**完全未提与 `required_approving_review_count` 的交互** | **文档缺口**；社区讨论证实"设 approvals=0 仍会被挡"是**已知限制**，且「作者不能批准自己的 PR」是**平台硬规则、无配置可覆盖** |
+
+### 由查证新发现的陷阱⑤（实测没碰到，但会咬人）
+
+`require_last_push_approval` 与 `strict`（要求分支与 base 最新）**组合互锁**：
+点 "Update branch" 会产生一个**空 commit**，它算作"最近一次 push"，于是**又需要一次他人批准**——
+形成"更新→需批准→期间 base 又变→再更新"的循环。
+社区已就此提 discussion 要求"忽略空 commit"。
+
+**本平台的处置**：两仓当前均为 `strict: true` + `require_last_push_approval: false`，
+不触发该组合。但 ≥2 人团队按「决定」第 3 条会把 `require_last_push_approval` 开成 `true`，
+届时**必须同时评估是否关掉 `strict`**，否则活跃仓会陷入上述循环。已写入手册。
+
+### 教训（写进方法论）
+
+我是**先摸索后查证**的：靠 A/B 对照逼出了正确结论，但花的时间远超读一次文档。
+更糟的是，若不查证我永远不会知道陷阱⑤。
+→ 固化为规矩：**行为与预期不符且说不出机制时，先查再猜**（已写入全局 CLAUDE.md ⓪.5）。
+实测与查证**并行且互不替代**：查证给机制，实测给这台机器上的事实。
+
 ## 三层陷阱
 
 ### 陷阱①：免费账号 + 私有仓 = 完全没有分支保护
