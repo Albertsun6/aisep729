@@ -571,7 +571,7 @@ CRV2="$ROOT/.claude/skills/e2e-review/scripts/check-review.sh"
 bc_case() {  # bc_case <说明> <期望命中:yes|no> <finding 行>
   mk_bc "$3"; total=$((total+1))
   if bash "$CRV2" "$BC/" --final 2>&1 | grep -q "未闭环"; then hit=yes; else hit=no; fi
-  if [ "$hit" = "$2" ]; then echo "  ✅ $1"; else echo "  ❌ $1（期望命中=$2，实得=$hit）"; fails=$((fails+1)); fi
+  if [ "$hit" = "$2" ]; then echo "  ✅ $1"; else echo "  ❌ $1（期望命中=${2}，实得=${hit}）"; fails=$((fails+1)); fi
 }
 bc_case "真·block+open 必须被抓（防改松）"          yes '| F-1 | block | deterministic | correctness | a:1 | x | open | - |'
 bc_case "加粗 severity + reopened 也要被抓"          yes '| F-2 | **block** | deterministic | correctness | a:1 | x | reopened | - |'
