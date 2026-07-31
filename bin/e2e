@@ -108,6 +108,7 @@ cmd_init() {
   copy_one  "scripts/check-skill-deps.sh"  || true
   copy_one  "scripts/check-clause-refs.sh" || true
   copy_one  "scripts/check-action-pins.sh" || true
+  copy_one  "scripts/check-ai-review-contract.sh" || true
   copy_one  "ops/check-branch-protection.sh" || true
   copy_one  "scripts/check-selfcontained.sh" || true
   copy_one  "scripts/ratchet.sh"           || true
@@ -603,6 +604,8 @@ jobs:
         run: bash scripts/check-clause-refs.sh
       - name: 第三方 Action SHA-pin（C15）
         run: bash scripts/check-action-pins.sh
+      - name: AI 评审三通道契约（LLM 不得有阻断权）
+        run: bash scripts/check-ai-review-contract.sh
 
   probe-negatives:
     runs-on: macos-latest
