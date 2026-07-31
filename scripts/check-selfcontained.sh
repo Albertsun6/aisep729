@@ -26,6 +26,8 @@ WHITELIST=(
   "Claude企业级E2E研发平台-完整报告.md"                        # 调研报告：CLAUDE.md 官方四层分层说明
   "Claude企业级E2E研发平台-完整报告.html"                      # 同上（HTML 版）
   "E2E研发平台-全局视图.html"                                  # 架构图：标注"不依赖个人 ~/.claude"
+  "docs/architecture/adr/ADR-015-plugin-marketplace-distribution.md"  # 说明 Claude Code 插件缓存落点，非运行时依赖
+  "docs/implementation-manual.md"                             # §3.1 告知插件装到哪，读者需据此自查
 )
 
 in_whitelist() {
