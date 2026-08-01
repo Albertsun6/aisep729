@@ -102,6 +102,9 @@ if [ -x tests/probe-negative/run.sh ] || [ -f tests/probe-negative/run.sh ]; the
       printf '  ✅ 负样本条数对账一致：%s\n' "$actual"
     else
       printf '  ❌ README 声称 %s 条，实跑 %s 条 —— 最重要的数字自己对不上账\n' "$claimed" "$actual"
+      # 分母随环境守卫变化时（如缺 ffmpeg），把套件的跳过行打出来辅助定位
+      skips=$(bash tests/probe-negative/run.sh 2>/dev/null | grep '⚠️' || true)
+      [ -n "$skips" ] && printf '%s\n' "$skips" | sed 's/^/     /'
       bad=$((bad+1))
     fi
     # A7（platform-hardening）：手册 §8 验证基线同数对账——"手动数字必漂移"这病

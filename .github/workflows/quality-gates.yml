@@ -22,6 +22,11 @@ jobs:
         with:
           fetch-depth: 0   # check-marketplace-sha 需要历史才能判定 sha 时效（浅克隆下会误诊为"sha 不存在"）
 
+      # 负样本分母必须环境稳定（实测：runner 缺 ffmpeg 时 demo-video 用例守卫跳过，
+      # 分母 151≠README 声称 152，check-readme 对账当场红——对账探针自己抓的，行为正确）
+      - name: 前置：ffmpeg（demo-video 负样本依赖，缺才装）
+        run: command -v ffprobe >/dev/null 2>&1 || brew install ffmpeg
+
       - name: 阶段0 探针（prfaq 结构 + 门禁⓪状态）
         run: bash .claude/skills/e2e-discovery/scripts/check-prfaq.sh specs/platform-pilot/prfaq.md
 
