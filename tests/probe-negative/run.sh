@@ -907,6 +907,37 @@ mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 ba
 sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
 expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
 
+# ---------- 修宪须伴随 ADR + C8 大改动看守（platform-hardening B6/B5）----------
+# 起源：mutation 实测把 C14 改成"可自批，检查：无"后 clause-refs/structure 双绿（评估 D9）；
+# C8 检查栏零机器执行、tasks 台账只撑到 M1（评估 D13）。
+echo "-- 修宪/C8 diff 看守 --"
+if command -v git >/dev/null 2>&1; then
+  CW="$WORK/constadr"; mkdir -p "$CW/scripts" "$CW/docs/architecture/adr"
+  cp "$ROOT/scripts/check-constitution-adr.sh" "$ROOT/scripts/check-c8-feature.sh" "$CW/scripts/"
+  printf '# 宪法\nC1 条文\n' > "$CW/docs/constitution.md"
+  printf '# ADR-001\n' > "$CW/docs/architecture/adr/ADR-001.md"
+  git -C "$CW" init -q -b main
+  git -C "$CW" add docs scripts
+  git -C "$CW" -c user.name=t -c user.email=t@t commit -qm base
+  git -C "$CW" checkout -qb feat
+  printf '# 宪法\nC1 条文（被静默改写）\n' > "$CW/docs/constitution.md"
+  git -C "$CW" add docs; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm mut
+  expect "修宪/1 裸修宪必须被抓" 1 bash "$CW/scripts/check-constitution-adr.sh"
+  printf '# ADR-002 修宪留痕\n' > "$CW/docs/architecture/adr/ADR-002.md"
+  git -C "$CW" add docs; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm adr
+  expect "修宪/0 伴随 ADR 放行" 0 bash "$CW/scripts/check-constitution-adr.sh"
+  git -C "$CW" checkout -q main; git -C "$CW" checkout -qb big
+  for i in 1 2 3 4 5 6 7 8 9 10 11; do printf 'x\n' > "$CW/f${i}.txt"; done
+  git -C "$CW" add .; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm big
+  expect "C8/1 大改动无立项（strict）必须被抓" 1 bash "$CW/scripts/check-c8-feature.sh" --strict
+  expect "C8/0 advisory 模式提示不阻断" 0 bash "$CW/scripts/check-c8-feature.sh"
+  mkdir -p "$CW/specs/f"; printf 'prfaq\n' > "$CW/specs/f/prfaq.md"
+  git -C "$CW" add specs; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm lichang
+  expect "C8/0 立项在场放行（strict）" 0 bash "$CW/scripts/check-c8-feature.sh" --strict
+else
+  echo "  ⚠️  跳过：无 git（修宪/C8 看守负样本）"
+fi
+
 # ---------- 门禁批准绑定内容（platform-hardening B2' · SPEC-3 落地）----------
 # 起源：评估 D7——已批 release.md/deprecation.md 批后被改正文、无重批留痕；
 # SPEC-3 承诺的历史对账探针从未实现。同文件摘要防不了同域篡改（评审 G3/P2），
