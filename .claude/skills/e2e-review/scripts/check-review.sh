@@ -121,9 +121,12 @@ if [ "$mode" = "--final" ]; then
 fi
 
 # 门禁台账 fail-open 修复：校验本文件自己的决定值合法（gate.sh 单一实现）
+# A9（SPEC-2 口径钉死）：本块是评审结论的**投影**，门禁③的权威账本=服务端
+# PR 合并+required checks（check-release.sh 核对，从不读本块）。文本写"打回"
+# 拦不住已合并的 PR——两者冲突以服务端为准，本探针的输出必须把这一点说给人看。
 gate_assert_legal "$review" 批准 打回 || missing=$((missing+1))
 gate3=$(gate_status "$review")
 
 [ "$missing" -gt 0 ] && { echo "FAIL(66): 缺 $missing 项"; exit 66; }
-echo "PASS: review 结构完整 | finding ${rows} 条 | 门禁③=$gate3"
+echo "PASS: review 结构完整 | finding ${rows} 条 | 门禁③文本块=投影（权威在服务端，SPEC-2）：$gate3"
 exit 0
