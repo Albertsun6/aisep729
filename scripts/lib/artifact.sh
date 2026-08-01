@@ -52,5 +52,6 @@ art_table_rows() {  # art_table_rows <file> <## 小节标题> → 输出数据�
 # ---- 非人类署名启发式（finding #7：表不可能穷尽，故只作 WARN 不作 block）----
 art_looks_nonhuman() {  # art_looks_nonhuman <字符串> → 0=疑似非人类
   local v="${1:-}"
-  printf '%s' "$v" | grep -qiE '(^|[^[:alnum:]])(ai|bot|gpt|llm|copilot|cursor|codex|claude|agent)([^[:alnum:]]|$)|机器人|自动化?|系统|脚本|流水线|工具|ci|待填'
+  # "ci" 原是裸子串（Lucia/Francis 等真人名会误中）——A5 将本判定接入串锁 blocker 前挪进边界组
+  printf '%s' "$v" | grep -qiE '(^|[^[:alnum:]])(ai|bot|gpt|llm|copilot|cursor|codex|claude|agent|ci)([^[:alnum:]]|$)|机器人|自动化?|系统|脚本|流水线|工具|待填'
 }

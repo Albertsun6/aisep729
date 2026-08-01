@@ -801,6 +801,7 @@ if [ -f "$PF" ] && [ -f "$PT" ]; then
   FR="$FW/fakeroot"; SKD="$FR/.claude/skills/e2e-discovery"
   mkdir -p "$SKD/scripts" "$SKD/templates" "$FR/scripts/lib"
   cp "$ROOT/scripts/lib/gate.sh" "$FR/scripts/lib/gate.sh"
+  cp "$ROOT/scripts/lib/artifact.sh" "$FR/scripts/lib/artifact.sh"   # gate.sh 的署名判定依赖（A5）；scripts/lib 本就整树分发
   sed 's|\.\./templates/prfaq-template\.md|../templates/__不存在__.md|' "$PF" > "$SKD/scripts/check-prfaq.sh"
   expect "填充/66 模板缺失时拒绝判定（不得静默放行）" 66 bash "$SKD/scripts/check-prfaq.sh" "$FW/real.md"
 
@@ -905,6 +906,22 @@ mut_trap 1; expect "traps/66 改坏陷阱1 生产正则→金丝雀拦截（不�
 mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 bash "$STW/mut.sh" "$STW/t4.sh"
 sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
 expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
+
+# ---------- 门禁批准人可归因（platform-hardening A5 / C14）----------
+# 起源：mutation 实测——批准人填 "Claude（AI agent，本制品的生成者）"、决定 go，
+# check-prd 串锁照样 `GATE0: go ✓`。C14 在⓪①②③零机器执行。
+# 本校验只拦"如实署名的自批"，拦不了填人名说谎（真归因在服务端 actor，手册 §7）。
+echo "-- 门禁批准人（C14）--"
+AH="$WORK/aphuman"; mkdir -p "$AH"
+mk_ap_prfaq() {  # mk_ap_prfaq <批准人>：决定恒 go
+  printf '# PR-FAQ\n---\n门禁⓪ 记录：\n- 批准人：%s\n- 决定：go\n- 日期：2026-01-01\n- 备注：t\n' "$1" > "$AH/prfaq.md"
+}
+mk_ap_prfaq "Claude（AI agent，本制品的生成者）"
+expect "批准人/64 AI 如实署名自批必须被串锁拦下" 64 bash "$P1" "$AH"
+mk_ap_prfaq "<待填>"
+expect "批准人/64 决定已填但批准人待填（无归因不算批准）" 64 bash "$P1" "$AH"
+mk_ap_prfaq "张三（人类，评审组）"
+expect "批准人/65 人类署名放行（进入下一检查=缺 prd）" 65 bash "$P1" "$AH"
 
 # ---------- 门禁③ 必须核对 required check 的名字（platform-hardening A4）----------
 # 起源：2026-08-01 异构评审（GPT）发现 + 主 agent 实测证实——gate3_remote 的 jq 只抽
