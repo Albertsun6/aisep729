@@ -907,6 +907,21 @@ mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 ba
 sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
 expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
 
+# ---------- 手册 §8 数字对账（platform-hardening A7）----------
+# 起源：CLAUDE.md 与手册 §8 写 97/97、实跑 106/106（评估 D4）——对账探针此前只覆盖 README 单文件。
+echo "-- 手册数字对账 --"
+R7="$WORK/readme7"; mkdir -p "$R7/tests/probe-negative" "$R7/docs"
+{ for i in $(seq 22); do echo "行 ${i}"; done
+  echo '见 [自己](./README.md)'
+  echo '跑 `bash tests/probe-negative/run.sh`'
+  echo '## 已知限制'
+  for i in $(seq 6); do echo "- 限制 ${i}"; done; } > "$R7/README.md"
+printf '#!/bin/sh\necho "== 结果：5/5 符合预期 =="\n' > "$R7/tests/probe-negative/run.sh"
+printf '| 验证基线 | 负样本 **4/4** |\n' > "$R7/docs/implementation-manual.md"
+expect "手册对账/1 手册基线数与实跑不符必须被抓" 1 bash "$RM" "$R7"
+printf '| 验证基线 | 负样本 **5/5** |\n' > "$R7/docs/implementation-manual.md"
+expect "手册对账/0 数字一致放行" 0 bash "$RM" "$R7"
+
 # ---------- 门禁批准人可归因（platform-hardening A5 / C14）----------
 # 起源：mutation 实测——批准人填 "Claude（AI agent，本制品的生成者）"、决定 go，
 # check-prd 串锁照样 `GATE0: go ✓`。C14 在⓪①②③零机器执行。
