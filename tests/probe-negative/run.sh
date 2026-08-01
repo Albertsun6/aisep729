@@ -886,6 +886,26 @@ else
   echo "  ⚠️  跳过：无 git 或 bin/e2e"
 fi
 
+# ---------- shell-traps 金丝雀复用生产正则（platform-hardening A2）----------
+# 起源：2026-08-01 mutation 实测——金丝雀与生产正则各存一份字面量，改坏生产 t1 正则后
+# 金丝雀照绿、含陷阱样本判 PASS exit 0。金丝雀必须复用生产同一条正则（CLAUDE.md 陷阱 E/F/G），
+# 生产正则被改坏时要当场响亮 66，不许假绿。样本用 \x 转义防 run.sh 自身被陷阱扫描误伤。
+echo "-- shell-traps 金丝雀单源 --"
+ST="$ROOT/scripts/check-shell-traps.sh"
+STW="$WORK/shelltraps"; mkdir -p "$STW"
+printf 'v=1\necho "$v\xe3\x80\x82"\n' > "$STW/t1.sh"
+printf '#!/bin/sh\n\x67rep -P x f\n'  > "$STW/t4.sh"
+printf '\x73ed -i x f\n'              > "$STW/t2.sh"
+expect "traps/66 陷阱1 样本被检出（检出力不回退）" 66 bash "$ST" "$STW/t1.sh"
+expect "traps/66 陷阱4 样本被检出" 66 bash "$ST" "$STW/t4.sh"
+# 只改坏"生产那一份"（旧实现=scan 调用里的字面量；新实现=共享变量）→ 金丝雀必须当场拦
+mut_trap() { sed -e "s/^t${1}=\$(scan '[^']*'/t${1}=\$(scan 'ZZZ_NEVER'/" \
+                 -e "s/^T${1}_RE=.*/T${1}_RE='ZZZ_NEVER'/" "$ST" > "$STW/mut.sh"; }
+mut_trap 1; expect "traps/66 改坏陷阱1 生产正则→金丝雀拦截（不许假绿）" 66 bash "$STW/mut.sh" "$STW/t1.sh"
+mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 bash "$STW/mut.sh" "$STW/t4.sh"
+sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
+expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
+
 # ---------- 六件套结构探针：零抽取 fail-open（platform-hardening A1）----------
 # 起源：2026-08-01 异构评估 mutation 实测——manifest 表内 skill 前缀漂移（如批量更名）后
 # 探针打印 'PASS…登记 0 个 skill' exit 0。守的正是刚发生过 e2e-platform→aisep 更名的
