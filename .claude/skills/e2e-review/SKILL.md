@@ -28,7 +28,7 @@ description: >-
 ## 流程（六步）
 
 ### 第 0 步：入口校验
-`bash .claude/skills/e2e-review/scripts/check-review.sh specs/<feature>/ --gate-only`——校验阶段3 出口（tasks 全勾选 + `check-tasks.sh --final` 绿）。不过即停。
+`bash .claude/skills/e2e-review/scripts/check-review.sh specs/<feature>/ --gate-only`——校验阶段3 出口。**实际执行强度以探针为准**：它只数 tasks 未勾选框（不复检 tasks 质量——质量已由阶段3 的 `check-tasks.sh --final` 把过，本处不重复声称）。不过即停。
 
 ### 第 1 步：定档（读 risk-tiers.md）
 按改动文件路径匹配 glob，取**命中的最高档**；再检查动态升档触发（打回≥2次 / security block / 规模>400行或>15文件 / 新增依赖 / 删测试）。输出定档结论与依据。
