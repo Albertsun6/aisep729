@@ -50,7 +50,10 @@ echo "== 自包含扫描（宪法 C9 / SPEC-17）=="
 
 scan() {  # scan <模式描述> <grep 正则>
   local desc="$1" pat="$2" out
-  out=$(grep -rn --exclude-dir=.git --exclude-dir=node_modules -E "$pat" . 2>/dev/null || true)
+  # worktrees=EnterWorktree 本地工作区（已 gitignore，非分发内容）：不排除会把白名单文件
+  # 以偏移路径重扫一遍、并命中 worktree 的 .git gitdir 指针——2026-08-01 实测（A8）
+  # --exclude=.git：worktree 里 .git 是 gitdir 指针**文件**（含宿主绝对路径），exclude-dir 排不掉
+  out=$(grep -rn --exclude-dir=.git --exclude=.git --exclude-dir=node_modules --exclude-dir=worktrees -E "$pat" . 2>/dev/null || true)
   [ -z "$out" ] && return 0
   while IFS= read -r line; do
     local file="${line%%:*}"

@@ -49,8 +49,12 @@ art_table_rows() {  # art_table_rows <file> <## 小节标题> → 输出数据�
     | grep -vcE '^\|[[:space:]|]*<[^>]*>' || true
 }
 
-# ---- 非人类署名启发式（finding #7：表不可能穷尽，故只作 WARN 不作 block）----
+# ---- 非人类署名启发式 ----
+# ⚠️ A5 之后本判定同时是 gate_require 的 64 blocker（不再只是 WARN）——误报=硬拒真人。
+# 因此：英文 token 全部带词边界；中文只保留高置信身份词（"系统/工具"这类会误中
+# "系统架构师/工具组"的角色词已移除，评审 G3/R6）。表不可能穷尽（assistant/全角变体
+# 之外总有新写法），拦的是"如实署名"，说谎归服务端 actor 管——扩表前先测真人署名语料。
 art_looks_nonhuman() {  # art_looks_nonhuman <字符串> → 0=疑似非人类
   local v="${1:-}"
-  printf '%s' "$v" | grep -qiE '(^|[^[:alnum:]])(ai|bot|gpt|llm|copilot|cursor|codex|claude|agent)([^[:alnum:]]|$)|机器人|自动化?|系统|脚本|流水线|工具|ci|待填'
+  printf '%s' "$v" | grep -qiE '(^|[^[:alnum:]])(ai|bot|gpt|chatgpt|llm|copilot|cursor|codex|claude|openai|anthropic|gemini|assistant|agent|ci)([^[:alnum:]]|$)|机器人|自动化?|脚本|流水线|待填'
 }

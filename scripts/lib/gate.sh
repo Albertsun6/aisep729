@@ -16,6 +16,15 @@
 #   gate_status   <file>            → 输出人类可读状态
 #   gate_require  <file> <合法值...> → 不满足则打印原因并 return 64
 
+# 署名判定复用 artifact.sh 的单一实现（A5）——不造第二份 AI 署名模式表（A2 刚修过
+# "两份字面量必漂移"的病）。scripts/lib 是 CAP_TREES 整目录分发，两文件不会单缺；
+# 真缺了就响亮 fail-closed，绝不静默跳过署名校验。
+_gate_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+if ! . "$_gate_dir/artifact.sh" 2>/dev/null || ! command -v art_looks_nonhuman >/dev/null 2>&1; then
+  echo "FAIL(65): scripts/lib/artifact.sh 缺失或损坏——gate.sh 的批准人校验依赖它（同目录整树分发，不该单缺）" >&2
+  exit 65
+fi
+
 # 找仓库根（优先 git，回退到含 docs/constitution.md 的祖先目录）
 gate_repo_root() {
   local d
@@ -42,8 +51,15 @@ gate_repo_root() {
 #   ① 只认**从文件尾部向上**锚定到的门禁块（`门禁… 记录` 之后的那一段）
 #   ② 全文出现 >1 条 `^- 决定：` 一律判 UNKNOWN —— **歧义即拒绝**，不猜哪条是真的
 gate_decision() {
-  local f="${1:-}" line val n
+  local f="${1:-}" line val n nblk
   [ -f "$f" ] || { printf 'UNKNOWN\n'; return 0; }
+
+  # ⓪ 块标题也歧义即拒（2026-08-01 复审 R3-2）：在真块内插一行伪标题可把块起点
+  # 向下挪，让上方的批准人/决定行落到机器认定的块外——批准人计数、决定行锚定全部
+  # 失准。标题只认**行首**形态（正文"见文末门禁⓪记录"这类句中提及不算，实测
+  # prd/spec 各有 4-5 处合法提及），行首形态 >1 一律 UNKNOWN，与决定行同规则。
+  nblk=$(grep -cE '^门禁.{0,3}记录' "$f" 2>/dev/null || true); : "${nblk:=0}"
+  [ "$nblk" -gt 1 ] && { printf 'UNKNOWN\n'; return 0; }
 
   # ② 歧义即 fail-closed：多条决定行无法判断哪条权威
   n=$(grep -cE '^- 决定：' "$f" 2>/dev/null || true); : "${n:=0}"
@@ -53,7 +69,7 @@ gate_decision() {
   # ① 该唯一一条必须落在**门禁记录块之后**（尾部锚定），否则不认
   local dec_ln blk_ln
   dec_ln=$(grep -nE '^- 决定：' "$f" | head -1 | cut -d: -f1)
-  blk_ln=$(grep -nE '门禁.{0,3}记录' "$f" | tail -1 | cut -d: -f1)
+  blk_ln=$(grep -nE '^门禁.{0,3}记录' "$f" | tail -1 | cut -d: -f1)
   [ -n "$blk_ln" ] || { printf 'UNKNOWN\n'; return 0; }
   [ "$dec_ln" -gt "$blk_ln" ] || { printf 'UNKNOWN\n'; return 0; }
 
@@ -84,22 +100,68 @@ gate_status() {
 # PENDING（待人批）合法——探针在非 --final 模式下允许待批状态。
 gate_assert_legal() {
   local f="${1:-}"; shift
-  local d; d=$(gate_decision "$f")
+  local d why; d=$(gate_decision "$f")
   [ "$d" = "PENDING" ] && return 0
   [ "$d" = "UNKNOWN" ] && { printf 'MISSING: 门禁块缺失或格式异常\n'; return 1; }
-  for want in "$@"; do [ "$d" = "$want" ] && return 0; done
+  for want in "$@"; do
+    if [ "$d" = "$want" ]; then
+      # A5：自检同样要求批准可归因（与 gate_require 同一把尺子）
+      why=$(gate_assert_human_approver "$f") || { printf 'MISSING: %s\n' "$why"; return 1; }
+      return 0
+    fi
+  done
   printf 'MISSING: 门禁决定值非法："%s"（契约只认：%s）——写错一个词就能过自己那道门\n' "$d" "$*"
   return 1
+}
+
+# gate_block_line <file>：输出最后一个门禁记录标题的行号（无块输出空）
+# 单一实现供库内与探针复用——锚定正则的第 3 份字面量拷贝曾出现在
+# check-gate-immutability.sh（评审 R5），与 A2 修的"两份字面量必漂移"同病。
+gate_block_line() {
+  grep -nE '^门禁.{0,3}记录' "${1:-}" 2>/dev/null | tail -1 | cut -d: -f1
+}
+
+# gate_assert_human_approver <file>：决定已填时，批准人必须存在、唯一、且非 AI 署名（C14 / A5）
+#
+# 为什么（2026-08-01 mutation 实测）：串锁只读"决定："行，批准人从不校验——
+# 批准人填 "Claude（AI agent，本制品的生成者）"、决定 go，下游照样 `GATE0: go ✓`，
+# C14 在门禁⓪①②③上零机器执行。本函数只拦"如实署名的自批"，拦不了填人名说谎——
+# 真归因在服务端 review 事件 actor（手册 §7），这里是台账层的最低防线，不得宣称更多。
+# 歧义即拒绝（评审 G2/S1/R2 实测击穿后补）：块内 >1 条批准人行时，首行取值会让
+# "首行填人名、次行如实署名 AI"或"块头插行、尾部真槽位保持待填"两种不可见伪造放行——
+# 与 gate_decision 的决定行歧义规则同一把尺子。
+gate_assert_human_approver() {
+  local f="${1:-}" d ap blk_ln nap
+  d=$(gate_decision "$f")
+  case "$d" in PENDING|UNKNOWN) return 0 ;; esac   # 未批/异常由既有守卫处理
+  blk_ln=$(gate_block_line "$f")
+  [ -n "$blk_ln" ] || { printf '批准人无从定位（门禁块标题缺失）\n'; return 1; }
+  nap=$(sed -n "${blk_ln},\$p" "$f" | grep -cE '^- 批准人：' || true); : "${nap:=0}"
+  [ "$nap" -le 1 ] || { printf '门禁块内出现 %s 条批准人行——歧义即拒绝（与决定行同规则）\n' "$nap"; return 1; }
+  ap=$(sed -n "${blk_ln},\$p" "$f" | grep -E '^- 批准人：' | head -1 \
+       | sed -E 's/^- 批准人：[[:space:]]*//; s/[[:space:]]*$//')
+  if [ -z "$ap" ] || [ "$ap" = '<待填>' ]; then
+    printf '决定已填但批准人为空/<待填>——无归因的批准不算批准（C14）\n'; return 1
+  fi
+  if art_looks_nonhuman "$ap"; then
+    printf '批准人疑似非人类署名（"%s"）——执行者不得自批（C14）\n' "$ap"; return 1
+  fi
+  return 0
 }
 
 # gate_require <file> <合法值...>：满足返回 0，否则打印 FAIL(64) 并返回 64
 gate_require() {
   local f="${1:-}"; shift
-  local d ok=1
+  local d ok=1 why
   [ -f "$f" ] || { printf 'FAIL(64): 缺少上游制品 %s\n' "$f"; return 64; }
   d=$(gate_decision "$f")
   for want in "$@"; do [ "$d" = "$want" ] && ok=0; done
-  [ $ok -eq 0 ] && return 0
+  if [ $ok -eq 0 ]; then
+    # A5：决定值合法还不够——批准必须可归因（如实署名的 AI 自批在此拦截）
+    why=$(gate_assert_human_approver "$f") \
+      || { printf 'FAIL(64): 门禁批准不可归因——%s\n' "$why"; return 64; }
+    return 0
+  fi
   printf 'FAIL(64): 门禁未通过（当前=%s，需要=%s）——拒绝进入本阶段\n' "$d" "$*"
   return 64
 }

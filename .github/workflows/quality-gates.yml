@@ -9,6 +9,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 最小权限（安全评审 S4）：本 job 只读——check-release 的 gh 查询与 checkout 都不需要写
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   probes:
     runs-on: macos-latest
@@ -16,6 +21,11 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5（C15：第三方 Action 必须 SHA-pin，tag 可被移动）
         with:
           fetch-depth: 0   # check-marketplace-sha 需要历史才能判定 sha 时效（浅克隆下会误诊为"sha 不存在"）
+
+      # 负样本分母必须环境稳定（实测：runner 缺 ffmpeg 时 demo-video 用例守卫跳过，
+      # 分母 151≠README 声称 152，check-readme 对账当场红——对账探针自己抓的，行为正确）
+      - name: 前置：ffmpeg（demo-video 负样本依赖，缺才装）
+        run: command -v ffprobe >/dev/null 2>&1 || brew install ffmpeg
 
       - name: 阶段0 探针（prfaq 结构 + 门禁⓪状态）
         run: bash .claude/skills/e2e-discovery/scripts/check-prfaq.sh specs/platform-pilot/prfaq.md
@@ -28,6 +38,23 @@ jobs:
 
       - name: 阶段3 探针（tasks 逐条验证行/复杂度点）
         run: bash .claude/skills/e2e-implement/scripts/check-tasks.sh specs/platform-pilot/
+
+      # 门禁③④⑤台账此前零 CI 看守（platform-hardening B3，评估 D11）。
+      - name: 阶段4 探针（review 台账：findings 闭环 + 门禁③投影合法）
+        run: bash .claude/skills/e2e-review/scripts/check-review.sh specs/platform-pilot/
+
+      # subject PR 取自 release.md 的入口证据行——不是本次 PR：check-release 要求
+      # subject 已 MERGED，注入当前 PR 号会生命周期循环（异构评审 G5）。
+      - name: 阶段5 探针（release 台账 + 门禁③服务端证据）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          E2E_PR=$(grep -oE 'E2E_PR=[0-9]+' specs/platform-pilot/release.md | head -1 | cut -d= -f2)
+          [ -n "$E2E_PR" ] || { echo "FAIL(66): release.md 未记录 subject PR（E2E_PR=N）——无从核对服务端证据"; exit 66; }
+          E2E_PR="$E2E_PR" bash .claude/skills/e2e-release/scripts/check-release.sh specs/platform-pilot/
+
+      - name: 阶段6 探针（deprecation 台账）
+        run: bash .claude/skills/e2e-retire/scripts/check-retire.sh specs/platform-pilot/
 
       - name: 平台自审 · 结构（六件套/manifest 驱动/宪法 C4）
         run: bash scripts/check-structure.sh
@@ -52,6 +79,21 @@ jobs:
 
       - name: AI 评审三通道契约（LLM 不得有阻断权）
         run: bash scripts/check-ai-review-contract.sh
+
+      # 提高漂移门槛，非封洞：与 workflow 同域可被一并删除；真闭合需 org 级
+      # required workflow（单人仓不可得，手册 §7）。评审共识不做 marker 自证计数。
+      - name: CI 步骤清单对账（探针必须全部接线，B1）
+        run: bash scripts/check-ci-integrity.sh
+
+      # 需要 fetch-depth: 0（checkout 已配）——历史锚定在浅克隆下无从对账
+      - name: 门禁批准绑定内容（批后改正文须重批，B2'/SPEC-3）
+        run: bash scripts/check-gate-immutability.sh
+
+      - name: 修宪须伴随 ADR（B6，防"顺手修宪"）
+        run: bash scripts/check-constitution-adr.sh
+
+      - name: C8 大改动须有立项（B5，advisory 起步）
+        run: bash scripts/check-c8-feature.sh
 
       # 只在 main 上跑：sha 必须指向"改动本身所在的 commit"，而 PR 里那个 commit
       # **还不存在** —— 在 PR 上这条断言永远不可满足（鸡生蛋）。

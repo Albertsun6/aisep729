@@ -43,6 +43,13 @@ while IFS='|' read -r _ name stage gate product probe _; do
   [ "$local_ok" = 1 ] && echo "   ✅ ${name}：三件齐 + 接公共库"
 done < "$MANIFEST"
 
+# 抽出 0 条 = 清单驱动的判据整体失效（如批量更名后前缀漂移），必须响亮失败而非 PASS
+# —— 2026-08-01 mutation 实测：此守卫缺失时对"登记 0 个 skill"打印 PASS exit 0
+if [ "$checked" -eq 0 ]; then
+  echo "FAIL(66): ${MANIFEST} 抽出 0 个 e2e-* skill —— 清单格式漂移或全量更名，判据失效，拒绝 PASS"
+  exit 66
+fi
+
 # 阶段定义文档（已实现的阶段各一份）
 for f in docs/process/stages/stage-*.md; do
   [ -e "$f" ] || { echo "   ❌ 无阶段定义文档 docs/process/stages/"; miss=$((miss+1)); break; }
@@ -57,7 +64,8 @@ done
 
 # ---- 4：宪法 C4——.claude/ 下不得有业务真相 ----
 stray=$(find .claude -maxdepth 1 -mindepth 1 -not -name skills -not -name agents \
-        -not -name hooks -not -name rules -not -name "settings*.json" -not -name ".DS_Store" 2>/dev/null || true)
+        -not -name hooks -not -name rules -not -name "settings*.json" -not -name ".DS_Store" \
+        -not -name worktrees 2>/dev/null || true)   # worktrees=Claude Code 本地隔离目录（工具痕迹，非业务真相，已 gitignore）
 if [ -n "$stray" ]; then
   echo "   ❌ .claude/ 下有非适配层内容（宪法 C4）："; printf '%s\n' "$stray" | sed 's/^/      /'
   miss=$((miss+1))

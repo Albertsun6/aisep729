@@ -22,7 +22,7 @@ description: >-
 ## 流程（六步）
 
 ### 第 0 步：门禁校验
-`bash .claude/skills/e2e-requirements/scripts/check-prd.sh specs/<feature>/ --gate-only` 或直接 grep prfaq 的 `决定：go`。不过即停。
+`bash .claude/skills/e2e-requirements/scripts/check-prd.sh specs/<feature>/ --gate-only`。不过即停。（门禁解析只走 `scripts/lib/gate.sh` 单一实现——**不得手工 grep 决定行**：朴素 grep 取全文首匹配，会重现已修复的"正文伪造批准"fail-open，SPEC-5）
 
 ### 第 1 步：输入盘点
 读 prfaq（假设陈述/判据/no-gos/知识缺口）+ 既有 stories/访谈记录。列出：已答字段（只需确认）vs 空白字段（必须问）。

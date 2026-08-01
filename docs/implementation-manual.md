@@ -445,10 +445,20 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
   `gh pr list --state merged --limit 200 --json number --jq 'length'`（走了门禁的）
   对比 `git rev-list --count main`（全部）。
   这条限制会随时间自然消解，但**在它消解前不得含糊**。
-- **`Bash(bash bin/e2e*)` 是任意目录写入原语**：脚手架命令被写进了自动放行名单，
-  而 `init` / `adopt` 可以往**任意目录**写文件。允许一条命令就等于允许它的全部能力域——
-  批准 `bash bin/e2e*` 时批的不是"跑个脚手架"，是"往任何路径写文件"。
-  这条此前只写在 `USAGE.md`、**没进本手册**——正是"对账规则无人执行"的实例，已补。
+- **权限收紧后仍有残余注入面（2026-08-01 B4 收紧后的准确口径）**：
+  `bin/e2e` 的 init/adopt/assess（任意目录写入原语，原 E-4 登记项）已移出免确认区，
+  通配放行也已换成显式探针清单——但**显式清单不改变"放行路径 agent 可写"的结构**：
+  编辑一个已放行的探针脚本再执行它，仍然免确认。这是部分缓解，不是闭合；
+  "可写与免确认执行不可兼得"的真边界留给 ADR-016 议题。
+- **CI 步骤内容由 PR 自控**：分支保护的 required check 只认 job 名 `probes`，
+  job 里跑什么由 PR 可写的 workflow 文件决定。`check-ci-integrity.sh`（B1）与
+  `check-constitution-adr.sh`（B6）都与 workflow **同域**——一个 PR 可以把探针连
+  workflow 一起删。它们是**提高漂移门槛**（拦疏忽性阉割/漏接线/顺手修宪），不是封洞；
+  真正闭合需要 org 级 required workflow / GitHub App 外部信任根，单人个人仓当前不可得。
+- **批准人校验只拦"如实署名的自批"**：`gate_assert_human_approver`（A5）拦得住
+  批准人栏写 "Claude（AI agent）" 的形态（mutation 实测发生过），拦不住填人名说谎；
+  `check-gate-immutability.sh`（B2'）锚定的是 git 历史，伪造需改写已推送历史（被禁
+  force-push 拦），但**谁批准的**仍只有服务端 review 事件能证明（企业模式，ADR-009）。
 
 ### 7.1b 文本门禁台账**不是防伪凭证**（安全评审 critical，必读）
 
@@ -525,7 +535,7 @@ gh pr view <n> --json mergeStateStatus --jq '.'          # 必须 CLEAN，不能
 |---|---|
 | 平台版本 | `0.1.0-M1`（`bin/e2e version`） |
 | 实测环境 | macOS（Darwin 25.5.0）、bash 3.2.57、BSD grep |
-| 验证基线 | 负样本 **97/97**；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
+| 验证基线 | 负样本 **152/152**（`check-readme.sh` 与实跑对账，改错必红）；六门禁全链路 PASS；demo 仓 CI 四 job 全绿 |
 | gitleaks | 8.30.1（两仓全历史 0 leaks） |
 | 门禁行为证明 | 两仓 `ops/check-branch-protection.sh` 均 CONFIRMED |
 | Action pin | `actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09`（v5） |

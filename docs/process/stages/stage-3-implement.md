@@ -27,7 +27,7 @@
 | 入口条件 | `spec.md` 门禁② `决定：批准`（skill 第 0 步硬校验） |
 | 主制品 | `specs/<feature>/tasks.md` + 代码与测试 |
 | 出口 | 全任务勾选 + `check-tasks.sh --final` 绿 + spike 全结论 → 交阶段4（评审/PR，门禁③） |
-| 反模式警戒 | 任务无验证方式（"完成 X 功能"）；一条任务跨多个 SPEC 无法独立验证；spike 无结论就往下做；超预算不砍范围 |
+| 反模式警戒 | 任务无验证方式（"完成 X 功能"）；一条任务跨多个 SPEC 无法独立验证；spike 无结论就往下做；熔断触发不砍范围 |
 | 负责 skill | `e2e-implement`（`.claude/skills/e2e-implement/`） |
 
 ## 2. 阶段内流程
@@ -35,13 +35,13 @@
 ```mermaid
 flowchart LR
     GATE2{"门禁②=批准?"} -->|否| REJECT["拒绝启动"]
-    GATE2 -->|是| TASKS["第1步 产 tasks.md<br/>(分组:spike→骨架→增量<br/>每条带验证+预算)"]
+    GATE2 -->|是| TASKS["第1步 产 tasks.md<br/>(分组:spike→骨架→增量<br/>每条带验证+复杂度)"]
     TASKS --> PROBE1["探针 check-tasks.sh"]
     PROBE1 --> SPIKE["第2步 先跑 spike<br/>(时间盒,出结论)"]
     SPIKE -->|"结论入 ADR/调整"| IMPL["第3步 按任务实现<br/>(TDD/探针驱动,小步)"]
     IMPL --> HOOK["hooks 本地阻断<br/>lint/测试"]
     HOOK -->|"绿"| CHECK["逐条跑验证命令<br/>勾选任务"]
-    CHECK --> BUDGET{"超预算 20%?"}
+    CHECK --> BUDGET{"熔断信号?(ADR-012)"}
     BUDGET -->|是| CUT["触发砍线<br/>(plan 里程碑砍序)"]
     BUDGET -->|否| DONE["第4步 出口自检<br/>--final 绿"]
     CUT --> DONE
@@ -53,15 +53,15 @@ flowchart LR
 ```text
 specs/<feature>/
 ├── spec.md / plan.md      # 上游（门禁②）
-└── tasks.md               # 阶段3 主制品（任务清单+验证+预算+勾选状态）
+└── tasks.md               # 阶段3 主制品（任务清单+验证+复杂度+勾选状态）
 ```
 
 ## 4. skill 规格：e2e-implement
 
 - 触发："实现 / 开工 / tasks / e2e implement"
-- 第 0 步校验门禁②；第 1 步产 tasks.md（每条：编号/描述/映射 SPEC/验证命令/预算小时/依赖）；第 2 步 spike 优先；第 3 步实现并逐条跑验证勾选；第 4 步出口自检
-- 硬约束：无 `验证：` 的任务不许写进 tasks；spike 未出结论不得开始其依赖任务；超预算 20% 必须停下报告并按 plan 砍线（不静默超支）；不越门做评审/PR（阶段4）
+- 第 0 步校验门禁②；第 1 步产 tasks.md（每条：编号/描述/映射 SPEC/验证命令/复杂度点/依赖）；第 2 步 spike 优先；第 3 步实现并逐条跑验证勾选；第 4 步出口自检
+- 硬约束：无 `验证：` 的任务不许写进 tasks；spike 未出结论不得开始其依赖任务；熔断信号（验证连续失败 3 次 / spike 超时间盒，ADR-012）必须停下报告并按 plan 砍线（不静默硬扛）；不越门做评审/PR（阶段4）
 
 ## 5. 名词表（阶段3 词条，已并入 glossary）
 
-任务验证行 · 垂直切片 · 纵向骨架 · DoD · 时间盒 spike 结论 · 预算超支砍线
+任务验证行 · 垂直切片 · 纵向骨架 · DoD · 时间盒 spike 结论 · 返工熔断砍线

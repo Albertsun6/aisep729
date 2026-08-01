@@ -172,6 +172,9 @@ gh api -X DELETE repos/<owner>/<repo>/branches/main/protection
 
 **仍未解决**：
 
+- **CI 步骤内容由 PR 自控** —— required check 只认 job 名；`check-ci-integrity.sh` 是同域漂移门槛非封洞，真闭合需 org 级 required workflow，个人仓不可得 （手册 §7）
+- **批准人校验只拦如实署名的自批** —— `gate_assert_human_approver` 拦不住填人名说谎；批准绑定内容（`check-gate-immutability.sh`）锚 git 历史，归因证明仍需服务端 review 事件 （手册 §7）
+- **权限显式清单仍有残余注入面** —— 编辑已放行的探针脚本再执行仍免确认；真边界留 ADR-016 议题 （手册 §7）
 - **分档可手填绕过** —— `check-review.sh` 只信 `review.md` 自填的档位，手填成低档探针发现不了 （手册 §7）
 - **升档触发无强制力** —— 规模/依赖超限只有建议力，没有 CI job 计算并阻断 （手册 §7）
 - **文本门禁台账不是防篡改凭证** —— 本轮修的 critical 只堵了"隐形伪造"， （手册 §7.1b）

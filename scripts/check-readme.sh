@@ -102,7 +102,25 @@ if [ -x tests/probe-negative/run.sh ] || [ -f tests/probe-negative/run.sh ]; the
       printf '  ✅ 负样本条数对账一致：%s\n' "$actual"
     else
       printf '  ❌ README 声称 %s 条，实跑 %s 条 —— 最重要的数字自己对不上账\n' "$claimed" "$actual"
+      # 分母随环境守卫变化时（如缺 ffmpeg），把套件的跳过行打出来辅助定位
+      skips=$(bash tests/probe-negative/run.sh 2>/dev/null | grep '⚠️' || true)
+      [ -n "$skips" ] && printf '%s\n' "$skips" | sed 's/^/     /'
       bad=$((bad+1))
+    fi
+    # A7（platform-hardening）：手册 §8 验证基线同数对账——"手动数字必漂移"这病
+    # 曾在本仓最承重的两处复发（CLAUDE.md 与手册 §8 写 97/97，实跑已 106/106，评估 D4）。
+    # CLAUDE.md 未入库、CI 对不了账，已改为不携带硬数字；手册是入库文档，在此钉住。
+    if [ -f docs/implementation-manual.md ]; then
+      mclaimed=$(grep -oE '负样本 \*\*[0-9]+/[0-9]+\*\*' docs/implementation-manual.md | head -1 | grep -oE '[0-9]+' | head -1)
+      : "${mclaimed:=}"
+      if [ -z "$mclaimed" ]; then
+        echo "  ⚠️  手册未声称负样本基线，跳过对账"
+      elif [ "$mclaimed" = "$actual" ]; then
+        printf '  ✅ 手册 §8 负样本基线对账一致：%s\n' "$actual"
+      else
+        printf '  ❌ 手册 §8 声称 %s，实跑 %s —— 手动维护的数字必然过期\n' "$mclaimed" "$actual"
+        bad=$((bad+1))
+      fi
     fi
   fi
 else
