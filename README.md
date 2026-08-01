@@ -20,7 +20,7 @@
 
 在自建自用过程中，这套门禁抓到的真实缺陷有**两个可核对的口径**：
 **18 条**归纳成陷阱写进了[实施手册 §2](./docs/implementation-manual.md)（陷阱 A–R），
-**106 条**沉淀成可执行负样本（`bash tests/probe-negative/run.sh` 的分母）。
+**142 条**沉淀成可执行负样本（`bash tests/probe-negative/run.sh` 的分母）。
 下面这几条是它的分量：
 
 | 抓到的 | 如果没抓到，会发生什么 |
@@ -50,8 +50,8 @@
 | 阶段 skill | **7** | `e2e-discovery` / `requirements` / `design` / `implement` / `review` / `release` / `retire` |
 | 评审 agent | **3** | architect（架构预审）/ reviewer（内环）/ security（安全） |
 | hook | **2** | 改完文件即时 lint · 收工前强制验证 |
-| 探针 | **14** | 结构 / 自包含 / bash 陷阱 / skill 依赖 / 宪法条款 / Action 钉版 / 手册结构 / 视频判据 / AI 评审契约 / 服务端门禁行为证明 / README 门面 / 插件 sha 时效 / adopt 对等 / 插件名一致 |
-| **负样本** | **106** | **探针自身能否被证伪** —— 这是本项目最重要的数字。口径 = `bash tests/probe-negative/run.sh` 的分母，**跑一下就能核对** |
+| 探针 | **18** | 结构 / 自包含 / bash 陷阱 / skill 依赖 / 宪法条款 / Action 钉版 / 手册结构 / 视频判据 / AI 评审契约 / 服务端门禁行为证明 / README 门面 / 插件 sha 时效 / adopt 对等 / 插件名一致 / CI 步骤对账 / 批准绑定内容 / 修宪伴随 ADR / C8 立项看守 |
+| **负样本** | **142** | **探针自身能否被证伪** —— 这是本项目最重要的数字。口径 = `bash tests/probe-negative/run.sh` 的分母，**跑一下就能核对** |
 | 工程宪法 | 15 条 | 不可妥协原则，每条含可执行检查 |
 | ADR | 15 份 | 每个决策含 ≥2 个真实备选 |
 
@@ -131,7 +131,7 @@ FAIL(65): 找不到 scripts/lib/gate.sh —— 本探针需要完整平台才能
 
 | 你想干什么 | 看这个 |
 |---|---|
-| **接入项目 / 了解踩过哪些坑** | [`docs/implementation-manual.md`](./docs/implementation-manual.md)（533 行，**§2 陷阱目录是精华**） |
+| **接入项目 / 了解踩过哪些坑** | [`docs/implementation-manual.md`](./docs/implementation-manual.md)（**§2 陷阱目录是精华**） |
 | 查命令 / 探针拦什么 / 分支保护怎么配 | [`USAGE.md`](./USAGE.md) |
 | 哪些改动需要人审 | [`docs/process/risk-tiers.md`](./docs/process/risk-tiers.md) |
 | 不可妥协的原则 | [`docs/constitution.md`](./docs/constitution.md)（C1–C15） |
@@ -150,6 +150,9 @@ FAIL(65): 找不到 scripts/lib/gate.sh —— 本探针需要完整平台才能
 - **文本门禁台账不是防篡改凭证**：修过的 critical 只堵了"隐形伪造"，
   **没堵"有写权限的人公开篡改"**。真正解决要把批准移到服务端 review 事件（手册 §7.1b）
 - **服务端门禁有入场费**：免费账号的**私有**仓根本配不了分支保护（GitHub 限制）
+- **CI 步骤内容由 PR 自控**：required check 只认 job 名 `probes`，job 里跑什么由 PR 可写的
+  workflow 决定。`check-ci-integrity.sh` 只是**漂移门槛**（它与 workflow 同域，可被一并删除），
+  真正闭合需要 org 级 required workflow / GitHub App 外部信任根——单人个人仓当前不可得
 - **只有一个人跑过**：全部验证来自自建者 + AI 评审，**无真人冷启动验证**
 - **"自举"的准确口径**：本仓 commit 中只有一部分经过 PR 门禁——分支保护是**建到后期才配上的**。
   诚实说法是「**配上门禁之后的改动全部走了门禁**」，不是"全程自举"。

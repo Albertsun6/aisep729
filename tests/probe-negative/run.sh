@@ -911,7 +911,7 @@ expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现�
 # 起源：mutation 实测把 C14 改成"可自批，检查：无"后 clause-refs/structure 双绿（评估 D9）；
 # C8 检查栏零机器执行、tasks 台账只撑到 M1（评估 D13）。
 echo "-- 修宪/C8 diff 看守 --"
-if command -v git >/dev/null 2>&1; then
+if [ -f "$ROOT/scripts/check-constitution-adr.sh" ] && command -v git >/dev/null 2>&1; then
   CW="$WORK/constadr"; mkdir -p "$CW/scripts" "$CW/docs/architecture/adr"
   cp "$ROOT/scripts/check-constitution-adr.sh" "$ROOT/scripts/check-c8-feature.sh" "$CW/scripts/"
   printf '# 宪法\nC1 条文\n' > "$CW/docs/constitution.md"
@@ -935,7 +935,7 @@ if command -v git >/dev/null 2>&1; then
   git -C "$CW" add specs; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm lichang
   expect "C8/0 立项在场放行（strict）" 0 bash "$CW/scripts/check-c8-feature.sh" --strict
 else
-  echo "  ⚠️  跳过：无 git（修宪/C8 看守负样本）"
+  echo "  ⚠️  跳过：无 git 或无 check-constitution-adr.sh（平台仓专用，不随 CAP_FILES 分发）"
 fi
 
 # ---------- 门禁批准绑定内容（platform-hardening B2' · SPEC-3 落地）----------
@@ -943,7 +943,7 @@ fi
 # SPEC-3 承诺的历史对账探针从未实现。同文件摘要防不了同域篡改（评审 G3/P2），
 # 故用 git 历史锚定：批准锚之后正文变更且未再触碰门禁块 → 红。
 echo "-- 门禁批准绑定内容 --"
-if command -v git >/dev/null 2>&1; then
+if [ -f "$ROOT/scripts/check-gate-immutability.sh" ] && command -v git >/dev/null 2>&1; then
   GIW="$WORK/gimm"; mkdir -p "$GIW/scripts/lib" "$GIW/specs/f"
   cp "$ROOT/scripts/check-gate-immutability.sh" "$GIW/scripts/"
   cp "$ROOT/scripts/lib/gate.sh" "$ROOT/scripts/lib/artifact.sh" "$GIW/scripts/lib/"
@@ -962,13 +962,14 @@ if command -v git >/dev/null 2>&1; then
   git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm rebless
   expect "批绑/0 重批留痕（再触碰门禁块区域）后放行" 0 bash "$GIW/scripts/check-gate-immutability.sh"
 else
-  echo "  ⚠️  跳过：无 git（check-gate-immutability 负样本）"
+  echo "  ⚠️  跳过：无 git 或无 check-gate-immutability.sh（平台仓专用，不随 CAP_FILES 分发）"
 fi
 
 # ---------- CI 步骤清单对账（platform-hardening B1）----------
 # 起源：评估 D6——required check 只认 job 名，步骤内容 PR 自控，删步骤=静默降级零发现。
 # 本探针是漂移门槛（同域可被一并删，诚实边界见其头部），负样本钉"阉割必须被抓"。
 echo "-- CI 步骤对账 --"
+if [ -f "$ROOT/scripts/check-ci-integrity.sh" ]; then
 CIW="$WORK/ciw"; mkdir -p "$CIW/scripts" "$CIW/tests/probe-negative" "$CIW/.github/workflows"
 cp "$ROOT/scripts/check-ci-integrity.sh" "$CIW/scripts/"
 for i in a b c d e f g h i; do printf '#!/bin/sh\n' > "$CIW/scripts/check-$i.sh"; done
@@ -983,6 +984,9 @@ grep -v 'check-e.sh' "$CIW/.github/workflows/quality-gates.yml" > "$CIW/.github/
 expect "CI对账/1 阉割一个步骤必须被抓" 1 bash "$CIW/scripts/check-ci-integrity.sh"
 rm "$CIW/.github/workflows/quality-gates.yml"
 expect "CI对账/65 无 workflow 拒绝 PASS" 65 bash "$CIW/scripts/check-ci-integrity.sh"
+else
+  echo "  ⚠️  跳过：无 check-ci-integrity.sh（平台仓专用，不随 CAP_FILES 分发）"
+fi
 
 # ---------- 手册 §8 数字对账（platform-hardening A7）----------
 # 起源：CLAUDE.md 与手册 §8 写 97/97、实跑 106/106（评估 D4）——对账探针此前只覆盖 README 单文件。
@@ -1081,12 +1085,12 @@ else
 fi
 
 echo "-- C13 补欠：demo-video --"
-if command -v ffprobe >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1; then
+if [ -f "$ROOT/scripts/check-demo-video.sh" ] && command -v ffprobe >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1; then
   DV="$WORK/dv"; mkdir -p "$DV"
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=black:s=64x64:d=2 -t 2 "$DV/v.mp4" 2>/dev/null
   expect "视频/1 2 秒无声无字幕必须被抓（SPEC-25）" 1 bash "$ROOT/scripts/check-demo-video.sh" "$DV/v.mp4"
 else
-  echo "  ⚠️  跳过：无 ffmpeg/ffprobe（check-demo-video 负样本，CI macos runner 自带）"
+  echo "  ⚠️  跳过：无 check-demo-video.sh（平台仓专用）或无 ffmpeg/ffprobe（CI macos runner 自带）"
 fi
 
 # ---------- 六件套结构探针：零抽取 fail-open（platform-hardening A1）----------
