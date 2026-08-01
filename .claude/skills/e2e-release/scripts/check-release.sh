@@ -77,7 +77,7 @@ gate3_remote() {
   [ "$st" = "MERGED" ] || { echo "FAIL(64): 门禁③ 未过——PR 状态=${st}（需 MERGED）"; exit 64; }
 
   rollup=$(gh pr view ${pr:+"$pr"} --repo "$repo" --json statusCheckRollup \
-    --jq '[.statusCheckRollup[]?|(.conclusion // .state // "")]|join(",")' 2>/dev/null); rc=$?
+    --jq '[.statusCheckRollup[]?|((.name // .context // "?")+"="+(.conclusion // .state // ""))]|join(",")' 2>/dev/null); rc=$?
   # 查询本身失败 → 事实取不到，回落降级路径（不是判绿）
   [ $rc -eq 0 ] || return 1
   # 零 checks → 无服务端证据，fail-closed 拒绝（宪法 C3：只认可验证的事实）
@@ -86,12 +86,19 @@ gate3_remote() {
     *FAILURE*|*ERROR*|*TIMED_OUT*|*CANCELLED*|*PENDING*|*STARTUP_FAILURE*|*ACTION_REQUIRED*)
       echo "FAIL(64): 门禁③ 未过——required checks 未全绿（${rollup}）"; exit 64 ;;
   esac
-  # SPEC-19：required checks 命名钉死；缺 quality-gates 即证据不完整
-  case "$rollup" in
-    *SUCCESS*) : ;;
-    *) echo "FAIL(64): 门禁③ 未过——checks 无 SUCCESS 记录（${rollup}）"; exit 64 ;;
-  esac
-  echo "GATE3-IN: 远程路径 ✓（PR=MERGED｜checks=${rollup}）"
+  # SPEC-19 做实（2026-08-01 异构评审 G2/D17）：此前只匹配字符串里有无 SUCCESS——
+  # 任何**无关** check 的成功都能充当门禁③证据（注释宣称"命名钉死"而实现没做）。
+  # 现在逐个核对命名 required check：默认 probes（本仓）；tpl_ci 客户仓为三 job，
+  # 须设 E2E_REQUIRED_CHECK=process-gates,structure-gates,probe-negatives。配错方向
+  # 是 fail-closed（名字对不上=拒绝），不是放行。
+  req="${E2E_REQUIRED_CHECK:-probes}"
+  for want in $(printf '%s' "$req" | tr ',' ' '); do
+    case ",${rollup}," in
+      *",${want}=SUCCESS,"*) : ;;
+      *) echo "FAIL(64): 门禁③ 未过——required check「${want}」无 SUCCESS 记录（实际：${rollup}）。无关 check 的成功不算证据；名单可用 E2E_REQUIRED_CHECK 覆盖"; exit 64 ;;
+    esac
+  done
+  echo "GATE3-IN: 远程路径 ✓（PR=MERGED｜required=${req} 全绿｜checks=${rollup}）"
 }
 
 # ---- 门禁③ 路径B：本地降级（merge commit + 全量测试绿）----

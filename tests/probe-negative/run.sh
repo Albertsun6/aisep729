@@ -906,6 +906,28 @@ mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 ba
 sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
 expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
 
+# ---------- 门禁③ 必须核对 required check 的名字（platform-hardening A4）----------
+# 起源：2026-08-01 异构评审（GPT）发现 + 主 agent 实测证实——gate3_remote 的 jq 只抽
+# conclusion/state，任何**无关** check 的 SUCCESS 都能充当门禁③证据；L89 注释宣称
+# "SPEC-19 命名钉死"而实现没做（注释与实现脱节）。gh 用 shim 模拟，PR 恒 MERGED。
+echo "-- 门禁③ 核对 check 名 --"
+REL="$ROOT/.claude/skills/e2e-release/scripts/check-release.sh"
+GH="$WORK/ghshim"; mkdir -p "$GH" "$WORK/relf"
+mk_gh() {  # mk_gh <rollup 输出>：statusCheckRollup 分支必须在 "--json state" 之前（前缀撞包）
+  { printf '#!/bin/sh\ncase "$*" in\n'
+    printf '  *statusCheckRollup*) echo "%s" ;;\n' "$1"
+    printf '  *nameWithOwner*) echo "o/r" ;;\n'
+    printf '  *"--json state"*) echo "MERGED" ;;\n'
+    printf '  *) echo ok ;;\nesac\n'; } > "$GH/gh"
+  chmod +x "$GH/gh"
+}
+mk_gh "lint=SUCCESS,probes=SKIPPED"
+expect "门禁③/64 无关 check 成功不算证据（probes 未跑）" 64 env PATH="$GH:$PATH" bash "$REL" "$WORK/relf" --gate-only
+mk_gh "probes=SUCCESS"
+expect "门禁③/0 命名 required check 全绿放行" 0 env PATH="$GH:$PATH" bash "$REL" "$WORK/relf" --gate-only
+mk_gh "probes=FAILURE"
+expect "门禁③/64 required check 红拒绝" 64 env PATH="$GH:$PATH" bash "$REL" "$WORK/relf" --gate-only
+
 # ---------- C13 补欠：四个零负样本探针（platform-hardening A3）----------
 # 起源：宪法 C13 写"每个 check-*.sh 须对至少一个坏样本 FAIL"，但 selfcontained /
 # action-pins / marketplace-sha / demo-video 四探针在本套件零用例（structure 已在 A1 补）。
