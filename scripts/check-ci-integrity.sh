@@ -33,7 +33,9 @@ for p in scripts/check-*.sh .claude/skills/e2e-*/scripts/check-*.sh tests/probe-
   [ -e "$p" ] || continue
   in_exempt "$p" && continue
   n=$((n+1))
-  if grep -qF "$p" "$WF"; then
+  # 过滤注释行再对账（评审 G7/S2/R4 实测击穿）：把步骤整行注释掉是最便宜的阉割形态，
+  # 路径字符串还在文件里，不滤注释就 PASS
+  if grep -vE '^[[:space:]]*#' "$WF" | grep -qF "$p"; then
     echo "   ✅ $p"
   else
     echo "   ❌ CI 未接线：$p —— 新探针没进 CI，或 workflow 步骤被删"

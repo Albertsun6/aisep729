@@ -107,18 +107,30 @@ gate_assert_legal() {
   return 1
 }
 
-# gate_assert_human_approver <file>：决定已填时，批准人必须存在且非 AI 署名（C14 / A5）
+# gate_block_line <file>：输出最后一个门禁记录标题的行号（无块输出空）
+# 单一实现供库内与探针复用——锚定正则的第 3 份字面量拷贝曾出现在
+# check-gate-immutability.sh（评审 R5），与 A2 修的"两份字面量必漂移"同病。
+gate_block_line() {
+  grep -nE '门禁.{0,3}记录' "${1:-}" 2>/dev/null | tail -1 | cut -d: -f1
+}
+
+# gate_assert_human_approver <file>：决定已填时，批准人必须存在、唯一、且非 AI 署名（C14 / A5）
 #
 # 为什么（2026-08-01 mutation 实测）：串锁只读"决定："行，批准人从不校验——
 # 批准人填 "Claude（AI agent，本制品的生成者）"、决定 go，下游照样 `GATE0: go ✓`，
 # C14 在门禁⓪①②③上零机器执行。本函数只拦"如实署名的自批"，拦不了填人名说谎——
 # 真归因在服务端 review 事件 actor（手册 §7），这里是台账层的最低防线，不得宣称更多。
+# 歧义即拒绝（评审 G2/S1/R2 实测击穿后补）：块内 >1 条批准人行时，首行取值会让
+# "首行填人名、次行如实署名 AI"或"块头插行、尾部真槽位保持待填"两种不可见伪造放行——
+# 与 gate_decision 的决定行歧义规则同一把尺子。
 gate_assert_human_approver() {
-  local f="${1:-}" d ap blk_ln
+  local f="${1:-}" d ap blk_ln nap
   d=$(gate_decision "$f")
   case "$d" in PENDING|UNKNOWN) return 0 ;; esac   # 未批/异常由既有守卫处理
-  blk_ln=$(grep -nE '门禁.{0,3}记录' "$f" 2>/dev/null | tail -1 | cut -d: -f1)
+  blk_ln=$(gate_block_line "$f")
   [ -n "$blk_ln" ] || { printf '批准人无从定位（门禁块标题缺失）\n'; return 1; }
+  nap=$(sed -n "${blk_ln},\$p" "$f" | grep -cE '^- 批准人：' || true); : "${nap:=0}"
+  [ "$nap" -le 1 ] || { printf '门禁块内出现 %s 条批准人行——歧义即拒绝（与决定行同规则）\n' "$nap"; return 1; }
   ap=$(sed -n "${blk_ln},\$p" "$f" | grep -E '^- 批准人：' | head -1 \
        | sed -E 's/^- 批准人：[[:space:]]*//; s/[[:space:]]*$//')
   if [ -z "$ap" ] || [ "$ap" = '<待填>' ]; then

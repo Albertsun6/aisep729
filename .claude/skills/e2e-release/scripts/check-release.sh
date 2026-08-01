@@ -69,7 +69,8 @@ _e2e_pr_arg() {
 gate3_remote() {
   command -v gh >/dev/null 2>&1 || return 1
   local st rollup rc pr repo
-  pr=$(_e2e_pr_arg)
+  # 评审 G1：exit 64 死在命令替换子进程里，失败被吞、空 pr 继续查询——必须传回主 shell
+  pr=$(_e2e_pr_arg) || exit 64
   repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true)
   [ -n "$repo" ] || return 1
   st=$(gh pr view ${pr:+"$pr"} --repo "$repo" --json state --jq '.state' 2>/dev/null) || return 1
@@ -88,16 +89,20 @@ gate3_remote() {
   esac
   # SPEC-19 做实（2026-08-01 异构评审 G2/D17）：此前只匹配字符串里有无 SUCCESS——
   # 任何**无关** check 的成功都能充当门禁③证据（注释宣称"命名钉死"而实现没做）。
-  # 现在逐个核对命名 required check：默认 probes（本仓）；tpl_ci 客户仓为三 job，
-  # 须设 E2E_REQUIRED_CHECK=process-gates,structure-gates,probe-negatives。配错方向
-  # 是 fail-closed（名字对不上=拒绝），不是放行。
+  # 名字核对在 jq 侧**精确等值**（评审 G6：逗号拼接串可被名为 `a,probes` 的 check 冒充）。
+  # 默认 probes（本仓）；tpl_ci 客户仓为三 job，须设
+  # E2E_REQUIRED_CHECK=process-gates,structure-gates,probe-negatives。
+  # 配错/空名单方向都是 fail-closed（拒绝），不是放行。
   req="${E2E_REQUIRED_CHECK:-probes}"
-  for want in $(printf '%s' "$req" | tr ',' ' '); do
-    case ",${rollup}," in
-      *",${want}=SUCCESS,"*) : ;;
-      *) echo "FAIL(64): 门禁③ 未过——required check「${want}」无 SUCCESS 记录（实际：${rollup}）。无关 check 的成功不算证据；名单可用 E2E_REQUIRED_CHECK 覆盖"; exit 64 ;;
-    esac
-  done
+  wants=$(printf '%s' "$req" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)
+  [ -n "$wants" ] || { echo "FAIL(64): 门禁③ 未过——E2E_REQUIRED_CHECK 解析出空名单（fail-closed）"; exit 64; }
+  while IFS= read -r want; do
+    st=$(gh pr view ${pr:+"$pr"} --repo "$repo" --json statusCheckRollup \
+      --jq "[.statusCheckRollup[]?|select((.name // .context // \"\")==\"${want}\")|(.conclusion // .state // \"\")]|unique|join(\",\")" 2>/dev/null) || st=""
+    [ "$st" = "SUCCESS" ] || { echo "FAIL(64): 门禁③ 未过——required check「${want}」状态=「${st:-缺失}」（需唯一 SUCCESS）。无关 check 的成功不算证据；名单可用 E2E_REQUIRED_CHECK 覆盖"; exit 64; }
+  done <<EOF
+$wants
+EOF
   echo "GATE3-IN: 远程路径 ✓（PR=MERGED｜required=${req} 全绿｜checks=${rollup}）"
 }
 
@@ -180,13 +185,8 @@ if [ "$mode" = "--final" ]; then
     || { echo "MISSING(final): SLO 表无量化目标"; missing=$((missing+1)); }
 fi
 
-# ---- 门禁④ 记录块的批准人也要校验（finding #9：此前只解析"决定："，批准人从不检查）----
-gate4_owner=$(grep -E '^- 批准人：' "$release" | head -1 | sed -E 's/^- 批准人：[[:space:]]*//')
-if [ -n "$gate4_owner" ] && [ "$gate4_owner" != "<待填>" ]; then
-  art_looks_nonhuman "$gate4_owner" \
-    && { echo "MISSING: 门禁④ 批准人非人类署名（\"${gate4_owner}\"）——宪法 C14 执行者不得自批"; missing=$((missing+1)); }
-fi
-
+# 门禁④批准人校验已并入 gate_assert_legal→gate_assert_human_approver（A5 单一实现）；
+# 此前这里有一份"全文首匹配"的手工抽取（不锚块、与库规则两套尺子）——评审 R5 删除。
 # 门禁台账 fail-open 修复：校验本文件自己的决定值合法（gate.sh 单一实现）
 gate_assert_legal "$release" 批准 打回 || missing=$((missing+1))
 gate4=$(gate_status "$release")

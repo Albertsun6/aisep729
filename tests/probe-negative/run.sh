@@ -439,13 +439,10 @@ echo "-- 门禁③ E2E_PR 参数注入 --"
 P5I="$ROOT/.claude/skills/e2e-release/scripts/check-release.sh"
 IW="$WORK/prinj/specs/x"; mkdir -p "$IW"
 printf -- '# TASKS\n\n- [x] T-1 done ｜ SPEC-1 ｜ 复杂度 1 ｜ 依赖 - ｜ 验证：`true`\n' > "$IW/tasks.md"
-total=$((total+1))
-if ( cd "$WORK/prinj" && E2E_PR="--repo cli/cli 6000" bash "$P5I" specs/x/ --gate-only 2>&1 \
-     | grep -q "E2E_PR 非法" ); then
-  echo "  ✅ 注入型 E2E_PR 被白名单拒绝"
-else
-  echo "  ❌ 注入型 E2E_PR 未被拦（参数注入复发）"; fails=$((fails+1))
-fi
+# 评审 G1：曾只 grep 错误文本（文本照印、exit 64 死在命令替换子进程、空 pr 继续查询）
+# ——测了个寂寞。现在断言**最终退出码**。
+expect "注入/64 注入型 E2E_PR 必须以退出码拒绝" 64 \
+  env E2E_PR="--repo cli/cli 6000" bash "$P5I" "$WORK/prinj/specs/x/" --gate-only
 
 # ---------- init 幂等性：第二次跑不得覆盖用户修改（冷启动验收 blocker）----------
 # 起源：copy_tree 旧实现是 `cp -R "$src/." "$dst/"` **整目录无条件覆盖**，
@@ -925,7 +922,13 @@ if [ -f "$ROOT/scripts/check-constitution-adr.sh" ] && command -v git >/dev/null
   expect "修宪/1 裸修宪必须被抓" 1 bash "$CW/scripts/check-constitution-adr.sh"
   printf '# ADR-002 修宪留痕\n' > "$CW/docs/architecture/adr/ADR-002.md"
   git -C "$CW" add docs; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm adr
-  expect "修宪/0 伴随 ADR 放行" 0 bash "$CW/scripts/check-constitution-adr.sh"
+  expect "修宪/0 伴随新增 ADR 放行" 0 bash "$CW/scripts/check-constitution-adr.sh"
+  # G9：改一个旧 ADR 不算修宪留痕——必须是新增的独立 ADR
+  git -C "$CW" checkout -q main; git -C "$CW" checkout -qb feat2
+  printf '# 宪法\nC1 再次被改\n' > "$CW/docs/constitution.md"
+  printf '# ADR-001（顺手改旧）\n' > "$CW/docs/architecture/adr/ADR-001.md"
+  git -C "$CW" add docs; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm mut2
+  expect "修宪/1 只改旧 ADR 不算留痕（评审 G9）" 1 bash "$CW/scripts/check-constitution-adr.sh"
   git -C "$CW" checkout -q main; git -C "$CW" checkout -qb big
   for i in 1 2 3 4 5 6 7 8 9 10 11; do printf 'x\n' > "$CW/f${i}.txt"; done
   git -C "$CW" add .; git -C "$CW" -c user.name=t -c user.email=t@t commit -qm big
@@ -961,6 +964,21 @@ if [ -f "$ROOT/scripts/check-gate-immutability.sh" ] && command -v git >/dev/nul
   git -C "$GIW" add specs
   git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm rebless
   expect "批绑/0 重批留痕（再触碰门禁块区域）后放行" 0 bash "$GIW/scripts/check-gate-immutability.sh"
+  # R1（block 修复回归）：改写已填决定行不是"重批"——SPEC-3 主场景，必须红
+  mkdir -p "$GIW/specs/g"
+  printf '# PRFAQ\n正文 s\n\n---\n门禁⓪ 记录：\n- 批准人：李四（人类）\n- 决定：kill\n- 日期：2026-01-01\n- 备注：t\n' > "$GIW/specs/g/prfaq.md"
+  git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm killed
+  sed -i '' 's/决定：kill/决定：go/' "$GIW/specs/g/prfaq.md"
+  git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm flip
+  expect "批绑/1 改写已填决定行（kill→go）必须被抓（SPEC-3 主场景，评审 R1）" 1 bash "$GIW/scripts/check-gate-immutability.sh"
+  git -C "$GIW" rm -q specs/g/prfaq.md; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm cleanup-g
+  # G5：已批制品被降回待批 = 批准被洗掉，必须红（不是"未批不约束"）
+  mkdir -p "$GIW/specs/h"
+  printf '# PRFAQ\n正文 t\n\n---\n门禁⓪ 记录：\n- 批准人：王五（人类）\n- 决定：go\n- 日期：2026-01-01\n- 备注：t\n' > "$GIW/specs/h/prfaq.md"
+  git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm approved-h
+  sed -i '' 's/决定：go/决定：<待填>/' "$GIW/specs/h/prfaq.md"
+  git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm degrade-h
+  expect "批绑/1 已批降回待批=批准被洗掉，必须被抓（评审 G5）" 1 bash "$GIW/scripts/check-gate-immutability.sh"
 else
   echo "  ⚠️  跳过：无 git 或无 check-gate-immutability.sh（平台仓专用，不随 CAP_FILES 分发）"
 fi
@@ -982,6 +1000,12 @@ expect "CI对账/0 全部接线放行" 0 bash "$CIW/scripts/check-ci-integrity.s
 grep -v 'check-e.sh' "$CIW/.github/workflows/quality-gates.yml" > "$CIW/.github/workflows/tmp" \
   && mv "$CIW/.github/workflows/tmp" "$CIW/.github/workflows/quality-gates.yml"
 expect "CI对账/1 阉割一个步骤必须被抓" 1 bash "$CIW/scripts/check-ci-integrity.sh"
+{ echo 'jobs:'; echo '  probes:'; echo '    steps:'
+  for i in a b c d e f g h i; do echo "      - run: bash scripts/check-$i.sh"; done
+  echo '      - run: bash scripts/check-ci-integrity.sh'
+  echo '      - run: bash tests/probe-negative/run.sh'; } > "$CIW/.github/workflows/quality-gates.yml"
+sed -i '' 's|^      - run: bash scripts/check-e.sh|#&|' "$CIW/.github/workflows/quality-gates.yml"
+expect "CI对账/1 注释掉的步骤不算接线（评审 G7/S2/R4）" 1 bash "$CIW/scripts/check-ci-integrity.sh"
 rm "$CIW/.github/workflows/quality-gates.yml"
 expect "CI对账/65 无 workflow 拒绝 PASS" 65 bash "$CIW/scripts/check-ci-integrity.sh"
 else
@@ -1018,6 +1042,13 @@ mk_ap_prfaq "<待填>"
 expect "批准人/64 决定已填但批准人待填（无归因不算批准）" 64 bash "$P1" "$AH"
 mk_ap_prfaq "张三（人类，评审组）"
 expect "批准人/65 人类署名放行（进入下一检查=缺 prd）" 65 bash "$P1" "$AH"
+# 双批准人歧义（评审 G2/S1/R2 实测击穿）：首行人名+次行如实署名 AI，head -1 取值曾放行
+printf '# PR-FAQ\n---\n门禁⓪ 记录：\n- 批准人：张三（人类）\n- 批准人：Claude（AI agent，本制品的生成者）\n- 决定：go\n- 日期：2026-01-01\n- 备注：t\n' > "$AH/prfaq.md"
+expect "批准人/64 双批准人歧义即拒（与决定行同规则）" 64 bash "$P1" "$AH"
+# gate_assert_legal 路径（门禁自检同一把尺子，R2）：结构完整 prfaq + 块内第二条批准人 → 66
+mk_prfaq "go"
+printf -- '- 批准人：Claude（AI agent）\n' >> "$GW/prfaq.md"
+expect "批准人/66 自检路径双批准人同样拒" 66 bash "$P0G" "$GW/prfaq.md"
 
 # ---------- 门禁③ 必须核对 required check 的名字（platform-hardening A4）----------
 # 起源：2026-08-01 异构评审（GPT）发现 + 主 agent 实测证实——gate3_remote 的 jq 只抽
@@ -1026,20 +1057,26 @@ expect "批准人/65 人类署名放行（进入下一检查=缺 prd）" 65 bash
 echo "-- 门禁③ 核对 check 名 --"
 REL="$ROOT/.claude/skills/e2e-release/scripts/check-release.sh"
 GH="$WORK/ghshim"; mkdir -p "$GH" "$WORK/relf"
-mk_gh() {  # mk_gh <rollup 输出>：statusCheckRollup 分支必须在 "--json state" 之前（前缀撞包）
+# shim 按名应答（评审 G6 后名字核对移到 jq 侧 select 精确等值；jq 逻辑本身以真实 gh
+# 对 PR#4 的实测为准，shim 只测探针编排）。select 分支必须排在总查询分支之前。
+mk_gh() {  # mk_gh <name=STATUS>...
   { printf '#!/bin/sh\ncase "$*" in\n'
-    printf '  *statusCheckRollup*) echo "%s" ;;\n' "$1"
+    for kv in "$@"; do printf '  *statusCheckRollup*select*%s*) echo "%s" ;;\n' "${kv%%=*}" "${kv#*=}"; done
+    joined=$(printf '%s,' "$@"); joined=${joined%,}
+    printf '  *statusCheckRollup*) echo "%s" ;;\n' "$joined"
     printf '  *nameWithOwner*) echo "o/r" ;;\n'
     printf '  *"--json state"*) echo "MERGED" ;;\n'
     printf '  *) echo ok ;;\nesac\n'; } > "$GH/gh"
   chmod +x "$GH/gh"
 }
-mk_gh "lint=SUCCESS,probes=SKIPPED"
+mk_gh "lint=SUCCESS" "probes=SKIPPED"
 expect "门禁③/64 无关 check 成功不算证据（probes 未跑）" 64 env PATH="$GH:$PATH" bash "$REL" "$WORK/relf" --gate-only
 mk_gh "probes=SUCCESS"
 expect "门禁③/0 命名 required check 全绿放行" 0 env PATH="$GH:$PATH" bash "$REL" "$WORK/relf" --gate-only
 mk_gh "probes=FAILURE"
 expect "门禁③/64 required check 红拒绝" 64 env PATH="$GH:$PATH" bash "$REL" "$WORK/relf" --gate-only
+mk_gh "probes=SUCCESS"
+expect "门禁③/64 空 required 名单 fail-closed（评审 G6）" 64 env PATH="$GH:$PATH" E2E_REQUIRED_CHECK="," bash "$REL" "$WORK/relf" --gate-only
 
 # ---------- C13 补欠：四个零负样本探针（platform-hardening A3）----------
 # 起源：宪法 C13 写"每个 check-*.sh 须对至少一个坏样本 FAIL"，但 selfcontained /

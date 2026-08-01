@@ -24,14 +24,21 @@ if [ -z "$base" ]; then
     || base=$(git merge-base HEAD origin/main 2>/dev/null) \
     || { echo "FAIL(66): 找不到 main 基线（需要 main 或 origin/main）"; exit 66; }
 fi
+git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 \
+  || { echo "FAIL(66): 基线 ${base} 不是有效 commit"; exit 66; }
 THRESHOLD=10
 
-changed=$(git diff --name-only "$base" HEAD -- 2>/dev/null || true)
+changed=$(git diff --name-only "$base" HEAD --) || { echo "FAIL(66): git diff 失败——无从判定"; exit 66; }
 n=$(printf '%s\n' "$changed" | grep -vE '^$|^specs/|^docs/research/' | grep -c . || true); : "${n:=0}"
-touched_specs=$(printf '%s\n' "$changed" | grep -c '^specs/' || true); : "${touched_specs:=0}"
+# "触碰 specs/"不够（评审 G9：随手改任何 specs 文件都算数）——被触碰的 feature 里
+# 必须真的存在 prfaq.md（立项契约文件）
+touched_specs=0
+for feat in $(printf '%s\n' "$changed" | grep -E '^specs/[^/]+/' | sed -E 's|^specs/([^/]+)/.*|\1|' | sort -u); do
+  [ -f "specs/${feat}/prfaq.md" ] && touched_specs=$((touched_specs+1))
+done
 
 if [ "$n" -le "$THRESHOLD" ] || [ "$touched_specs" -ge 1 ]; then
-  echo "PASS: C8 看守无信号（非豁免改动 ${n} 个文件，specs/ 触碰 ${touched_specs} 处）"
+  echo "PASS: C8 看守无信号（非豁免改动 ${n} 个文件，含 prfaq 的 feature 触碰 ${touched_specs} 个）"
   exit 0
 fi
 echo "⚠️  C8 信号：${n} 个非豁免文件改动而 specs/ 零触碰——大改动没有立项留痕"

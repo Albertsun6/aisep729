@@ -22,20 +22,27 @@ if [ -z "$base" ]; then
     || base=$(git merge-base HEAD origin/main 2>/dev/null) \
     || { echo "FAIL(66): 找不到 main 基线（需要 main 或 origin/main；浅克隆请设 fetch-depth: 0）"; exit 66; }
 fi
-
-changed=$(printf '%s\n%s\n%s\n' \
-  "$(git diff --name-only "$base" HEAD -- 2>/dev/null || true)" \
-  "$(git diff --name-only 2>/dev/null || true)" \
-  "$(git diff --name-only --cached 2>/dev/null || true)")
+# 基线必须真实存在；diff 出错=判据失效，不许吞成"空改动"（评审 G8）
+git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 \
+  || { echo "FAIL(66): 基线 ${base} 不是有效 commit"; exit 66; }
+c1=$(git diff --name-only "$base" HEAD --) || { echo "FAIL(66): git diff 失败——无从判定"; exit 66; }
+c2=$(git diff --name-only) || { echo "FAIL(66): git diff 失败——无从判定"; exit 66; }
+c3=$(git diff --name-only --cached) || { echo "FAIL(66): git diff 失败——无从判定"; exit 66; }
+changed=$(printf '%s\n%s\n%s\n' "$c1" "$c2" "$c3")
 
 if ! printf '%s\n' "$changed" | grep -q '^docs/constitution\.md$'; then
   echo "PASS: 本次改动未触碰宪法（基线 $(git rev-parse --short "$base")）"
   exit 0
 fi
-if printf '%s\n' "$changed" | grep -q '^docs/architecture/adr/'; then
-  echo "PASS: 修宪伴随 ADR 变更（修宪=独立 ADR 留痕，宪法头部约定）"
+# 陪同证据必须是**新增**的独立 ADR（评审 G9：改/删一个旧 ADR 不算修宪留痕）；
+# 未提交的新 ADR（尚未 add）也认——本探针兼作本地快反馈
+added_adr=$(git diff --name-only --diff-filter=A "$base" HEAD -- docs/architecture/adr/ 2>/dev/null || true)
+untracked_adr=$(git ls-files --others --exclude-standard docs/architecture/adr/ 2>/dev/null || true)
+staged_adr=$(git diff --name-only --cached --diff-filter=A -- docs/architecture/adr/ 2>/dev/null || true)
+if printf '%s\n%s\n%s\n' "$added_adr" "$untracked_adr" "$staged_adr" | grep -q '\.md$'; then
+  echo "PASS: 修宪伴随新增 ADR（修宪=独立 ADR 留痕，宪法头部约定）"
   exit 0
 fi
-echo "FAIL(1): docs/constitution.md 被修改而无 docs/architecture/adr/ 同行变更"
+echo "FAIL(1): docs/constitution.md 被修改而无**新增**的 docs/architecture/adr/*.md（改旧 ADR 不算）"
 echo "   修宪是不可协商流程：先写独立 ADR（含 ≥2 真实备选与 superseded 留痕），再动宪法条文"
 exit 1
