@@ -51,8 +51,15 @@ gate_repo_root() {
 #   ① 只认**从文件尾部向上**锚定到的门禁块（`门禁… 记录` 之后的那一段）
 #   ② 全文出现 >1 条 `^- 决定：` 一律判 UNKNOWN —— **歧义即拒绝**，不猜哪条是真的
 gate_decision() {
-  local f="${1:-}" line val n
+  local f="${1:-}" line val n nblk
   [ -f "$f" ] || { printf 'UNKNOWN\n'; return 0; }
+
+  # ⓪ 块标题也歧义即拒（2026-08-01 复审 R3-2）：在真块内插一行伪标题可把块起点
+  # 向下挪，让上方的批准人/决定行落到机器认定的块外——批准人计数、决定行锚定全部
+  # 失准。标题只认**行首**形态（正文"见文末门禁⓪记录"这类句中提及不算，实测
+  # prd/spec 各有 4-5 处合法提及），行首形态 >1 一律 UNKNOWN，与决定行同规则。
+  nblk=$(grep -cE '^门禁.{0,3}记录' "$f" 2>/dev/null || true); : "${nblk:=0}"
+  [ "$nblk" -gt 1 ] && { printf 'UNKNOWN\n'; return 0; }
 
   # ② 歧义即 fail-closed：多条决定行无法判断哪条权威
   n=$(grep -cE '^- 决定：' "$f" 2>/dev/null || true); : "${n:=0}"
@@ -62,7 +69,7 @@ gate_decision() {
   # ① 该唯一一条必须落在**门禁记录块之后**（尾部锚定），否则不认
   local dec_ln blk_ln
   dec_ln=$(grep -nE '^- 决定：' "$f" | head -1 | cut -d: -f1)
-  blk_ln=$(grep -nE '门禁.{0,3}记录' "$f" | tail -1 | cut -d: -f1)
+  blk_ln=$(grep -nE '^门禁.{0,3}记录' "$f" | tail -1 | cut -d: -f1)
   [ -n "$blk_ln" ] || { printf 'UNKNOWN\n'; return 0; }
   [ "$dec_ln" -gt "$blk_ln" ] || { printf 'UNKNOWN\n'; return 0; }
 
@@ -111,7 +118,7 @@ gate_assert_legal() {
 # 单一实现供库内与探针复用——锚定正则的第 3 份字面量拷贝曾出现在
 # check-gate-immutability.sh（评审 R5），与 A2 修的"两份字面量必漂移"同病。
 gate_block_line() {
-  grep -nE '门禁.{0,3}记录' "${1:-}" 2>/dev/null | tail -1 | cut -d: -f1
+  grep -nE '^门禁.{0,3}记录' "${1:-}" 2>/dev/null | tail -1 | cut -d: -f1
 }
 
 # gate_assert_human_approver <file>：决定已填时，批准人必须存在、唯一、且非 AI 署名（C14 / A5）

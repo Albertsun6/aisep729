@@ -97,6 +97,11 @@ gate3_remote() {
   wants=$(printf '%s' "$req" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)
   [ -n "$wants" ] || { echo "FAIL(64): 门禁③ 未过——E2E_REQUIRED_CHECK 解析出空名单（fail-closed）"; exit 64; }
   while IFS= read -r want; do
+    # want 会被插值进 jq 源码——字符集白名单防字符串闭合注入（复审 R3-3 实测：
+    # want='x")]| "SUCCESS" #' 可让 jq 恒输出 SUCCESS）。GitHub check 名常规字符之外一律拒。
+    case "$want" in
+      *[!A-Za-z0-9\ ._/-]*) echo "FAIL(64): 门禁③ 未过——required check 名含非常规字符（fail-closed，防注入）：${want}"; exit 64 ;;
+    esac
     st=$(gh pr view ${pr:+"$pr"} --repo "$repo" --json statusCheckRollup \
       --jq "[.statusCheckRollup[]?|select((.name // .context // \"\")==\"${want}\")|(.conclusion // .state // \"\")]|unique|join(\",\")" 2>/dev/null) || st=""
     [ "$st" = "SUCCESS" ] || { echo "FAIL(64): 门禁③ 未过——required check「${want}」状态=「${st:-缺失}」（需唯一 SUCCESS）。无关 check 的成功不算证据；名单可用 E2E_REQUIRED_CHECK 覆盖"; exit 64; }

@@ -79,21 +79,28 @@ for f in specs/*/"$pat".md; do
     bad=$((bad+1)); continue
   fi
 
-  # 规则②（SPEC-3 主场景，评审 R1）：父版本已是已填合法批准 → 只增不改删
-  par_dec=$(_dec_of "$par_content")
-  if [ -n "$par_content" ] && [ "$par_dec" != "PENDING" ] && [ "$par_dec" != "UNKNOWN" ]; then
+  # 规则②（SPEC-3 主场景，评审 R1 + 复审 R3-1b）：只增不改删的基线不是直接父版本，
+  # 而是锚之前**最近一个已填合法批准**的历史版本——否则"先降回待批、再重新填批"的
+  # 两步洗批会让父版本恰好待批、首填豁免空转，历史批准被无声洗掉。
+  baseline_content=""
+  for c in $(git log --format=%H "${ac}^" -- "$f" 2>/dev/null || true); do
+    bc=$(git show "$c:$f" 2>/dev/null || true)
+    bd=$(_dec_of "$bc")
+    case "$bd" in PENDING|UNKNOWN) : ;; *) baseline_content="$bc"; break ;; esac
+  done
+  if [ -n "$baseline_content" ]; then
     ac_block=$(git show "$ac:$f" | _block_of)
-    par_block=$(printf '%s\n' "$par_content" | _block_of)
+    base_block=$(printf '%s\n' "$baseline_content" | _block_of)
     lost=0
     while IFS= read -r line; do
       [ -n "$line" ] || continue
       # -e 传参：块行以 "-" 开头，直接作 pattern 会被 BSD grep 当选项（实测踩过）
       printf '%s\n' "$ac_block" | grep -qxF -e "$line" || { lost=$((lost+1)); }
     done <<EOF
-$par_block
+$base_block
 EOF
     if [ "$lost" -gt 0 ]; then
-      printf '   ❌ %s：锚 %s 改写/删除了已填批准块的 %s 行——SPEC-3 禁止（修订只许追加，如重批记录行）\n' \
+      printf '   ❌ %s：锚 %s 相对最近已填批准版本改写/删除了 %s 行——SPEC-3 禁止（修订只许追加，如重批记录行）\n' \
         "$f" "$(git rev-parse --short "$ac")" "$lost"
       bad=$((bad+1)); continue
     fi

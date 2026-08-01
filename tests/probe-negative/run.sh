@@ -979,6 +979,17 @@ if [ -f "$ROOT/scripts/check-gate-immutability.sh" ] && command -v git >/dev/nul
   sed -i '' 's/决定：go/决定：<待填>/' "$GIW/specs/h/prfaq.md"
   git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm degrade-h
   expect "批绑/1 已批降回待批=批准被洗掉，必须被抓（评审 G5）" 1 bash "$GIW/scripts/check-gate-immutability.sh"
+  git -C "$GIW" rm -q specs/h/prfaq.md; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm cleanup-h
+  # 复审 R3-1b：两步洗批——已批→降回待批→改值重批。基线须取最近**已填**历史版本，
+  # 只对直接父版本（恰好待批）做只增不改删会空转。
+  mkdir -p "$GIW/specs/i"
+  printf '# PRFAQ\n正文 u\n\n---\n门禁⓪ 记录：\n- 批准人：赵六（人类）\n- 决定：kill\n- 日期：2026-01-01\n- 备注：t\n' > "$GIW/specs/i/prfaq.md"
+  git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm approved-i
+  sed -i '' 's/决定：kill/决定：<待填>/' "$GIW/specs/i/prfaq.md"
+  git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm degrade-i
+  sed -i '' 's/决定：<待填>/决定：go/' "$GIW/specs/i/prfaq.md"
+  git -C "$GIW" add specs; git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm rewash-i
+  expect "批绑/1 两步洗批（已批→待批→改值重批）必须被抓（复审 R3-1b）" 1 bash "$GIW/scripts/check-gate-immutability.sh"
 else
   echo "  ⚠️  跳过：无 git 或无 check-gate-immutability.sh（平台仓专用，不随 CAP_FILES 分发）"
 fi
@@ -1049,6 +1060,9 @@ expect "批准人/64 双批准人歧义即拒（与决定行同规则）" 64 bas
 mk_prfaq "go"
 printf -- '- 批准人：Claude（AI agent）\n' >> "$GW/prfaq.md"
 expect "批准人/66 自检路径双批准人同样拒" 66 bash "$P0G" "$GW/prfaq.md"
+# 复审 R3-2：块内插一行**行首**伪标题可把块起点下挪、让上方批准人行落到块外——标题歧义即拒
+printf '# PR-FAQ\n---\n门禁⓪ 记录：\n- 批准人：张三（人类）\n门禁⓪ 记录（伪造的第二标题）：\n- 决定：go\n- 日期：2026-01-01\n- 备注：t\n' > "$AH/prfaq.md"
+expect "批准人/64 伪造第二个块标题=歧义拒绝" 64 bash "$P1" "$AH"
 
 # ---------- 门禁③ 必须核对 required check 的名字（platform-hardening A4）----------
 # 起源：2026-08-01 异构评审（GPT）发现 + 主 agent 实测证实——gate3_remote 的 jq 只抽
@@ -1077,6 +1091,8 @@ mk_gh "probes=FAILURE"
 expect "门禁③/64 required check 红拒绝" 64 env PATH="$GH:$PATH" bash "$REL" "$WORK/relf" --gate-only
 mk_gh "probes=SUCCESS"
 expect "门禁③/64 空 required 名单 fail-closed（评审 G6）" 64 env PATH="$GH:$PATH" E2E_REQUIRED_CHECK="," bash "$REL" "$WORK/relf" --gate-only
+expect "门禁③/64 required 名含注入字符 fail-closed（复审 R3-3：jq 字符串闭合）" 64 \
+  env PATH="$GH:$PATH" E2E_REQUIRED_CHECK='x")]| "SUCCESS" #' bash "$REL" "$WORK/relf" --gate-only
 
 # ---------- C13 补欠：四个零负样本探针（platform-hardening A3）----------
 # 起源：宪法 C13 写"每个 check-*.sh 须对至少一个坏样本 FAIL"，但 selfcontained /
