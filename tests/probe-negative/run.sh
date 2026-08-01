@@ -907,6 +907,25 @@ mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 ba
 sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
 expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
 
+# ---------- CI 步骤清单对账（platform-hardening B1）----------
+# 起源：评估 D6——required check 只认 job 名，步骤内容 PR 自控，删步骤=静默降级零发现。
+# 本探针是漂移门槛（同域可被一并删，诚实边界见其头部），负样本钉"阉割必须被抓"。
+echo "-- CI 步骤对账 --"
+CIW="$WORK/ciw"; mkdir -p "$CIW/scripts" "$CIW/tests/probe-negative" "$CIW/.github/workflows"
+cp "$ROOT/scripts/check-ci-integrity.sh" "$CIW/scripts/"
+for i in a b c d e f g h i; do printf '#!/bin/sh\n' > "$CIW/scripts/check-$i.sh"; done
+printf '#!/bin/sh\n' > "$CIW/tests/probe-negative/run.sh"
+{ echo 'jobs:'; echo '  probes:'; echo '    steps:'
+  for i in a b c d e f g h i; do echo "      - run: bash scripts/check-$i.sh"; done
+  echo '      - run: bash scripts/check-ci-integrity.sh'
+  echo '      - run: bash tests/probe-negative/run.sh'; } > "$CIW/.github/workflows/quality-gates.yml"
+expect "CI对账/0 全部接线放行" 0 bash "$CIW/scripts/check-ci-integrity.sh"
+grep -v 'check-e.sh' "$CIW/.github/workflows/quality-gates.yml" > "$CIW/.github/workflows/tmp" \
+  && mv "$CIW/.github/workflows/tmp" "$CIW/.github/workflows/quality-gates.yml"
+expect "CI对账/1 阉割一个步骤必须被抓" 1 bash "$CIW/scripts/check-ci-integrity.sh"
+rm "$CIW/.github/workflows/quality-gates.yml"
+expect "CI对账/65 无 workflow 拒绝 PASS" 65 bash "$CIW/scripts/check-ci-integrity.sh"
+
 # ---------- 手册 §8 数字对账（platform-hardening A7）----------
 # 起源：CLAUDE.md 与手册 §8 写 97/97、实跑 106/106（评估 D4）——对账探针此前只覆盖 README 单文件。
 echo "-- 手册数字对账 --"

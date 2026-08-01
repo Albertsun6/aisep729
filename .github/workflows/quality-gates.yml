@@ -29,6 +29,23 @@ jobs:
       - name: 阶段3 探针（tasks 逐条验证行/复杂度点）
         run: bash .claude/skills/e2e-implement/scripts/check-tasks.sh specs/platform-pilot/
 
+      # 门禁③④⑤台账此前零 CI 看守（platform-hardening B3，评估 D11）。
+      - name: 阶段4 探针（review 台账：findings 闭环 + 门禁③投影合法）
+        run: bash .claude/skills/e2e-review/scripts/check-review.sh specs/platform-pilot/
+
+      # subject PR 取自 release.md 的入口证据行——不是本次 PR：check-release 要求
+      # subject 已 MERGED，注入当前 PR 号会生命周期循环（异构评审 G5）。
+      - name: 阶段5 探针（release 台账 + 门禁③服务端证据）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          E2E_PR=$(grep -oE 'E2E_PR=[0-9]+' specs/platform-pilot/release.md | head -1 | cut -d= -f2)
+          [ -n "$E2E_PR" ] || { echo "FAIL(66): release.md 未记录 subject PR（E2E_PR=N）——无从核对服务端证据"; exit 66; }
+          E2E_PR="$E2E_PR" bash .claude/skills/e2e-release/scripts/check-release.sh specs/platform-pilot/
+
+      - name: 阶段6 探针（deprecation 台账）
+        run: bash .claude/skills/e2e-retire/scripts/check-retire.sh specs/platform-pilot/
+
       - name: 平台自审 · 结构（六件套/manifest 驱动/宪法 C4）
         run: bash scripts/check-structure.sh
 
@@ -52,6 +69,11 @@ jobs:
 
       - name: AI 评审三通道契约（LLM 不得有阻断权）
         run: bash scripts/check-ai-review-contract.sh
+
+      # 提高漂移门槛，非封洞：与 workflow 同域可被一并删除；真闭合需 org 级
+      # required workflow（单人仓不可得，手册 §7）。评审共识不做 marker 自证计数。
+      - name: CI 步骤清单对账（探针必须全部接线，B1）
+        run: bash scripts/check-ci-integrity.sh
 
       # 只在 main 上跑：sha 必须指向"改动本身所在的 commit"，而 PR 里那个 commit
       # **还不存在** —— 在 PR 上这条断言永远不可满足（鸡生蛋）。
