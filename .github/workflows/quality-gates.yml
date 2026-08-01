@@ -75,6 +75,10 @@ jobs:
       - name: CI 步骤清单对账（探针必须全部接线，B1）
         run: bash scripts/check-ci-integrity.sh
 
+      # 需要 fetch-depth: 0（checkout 已配）——历史锚定在浅克隆下无从对账
+      - name: 门禁批准绑定内容（批后改正文须重批，B2'/SPEC-3）
+        run: bash scripts/check-gate-immutability.sh
+
       # 只在 main 上跑：sha 必须指向"改动本身所在的 commit"，而 PR 里那个 commit
       # **还不存在** —— 在 PR 上这条断言永远不可满足（鸡生蛋）。
       # 合进 main 后它变得可满足：紧接着推一个只改 marketplace.json 的 commit 即可转绿。

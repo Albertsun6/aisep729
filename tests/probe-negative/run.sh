@@ -907,6 +907,33 @@ mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 ba
 sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
 expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
 
+# ---------- 门禁批准绑定内容（platform-hardening B2' · SPEC-3 落地）----------
+# 起源：评估 D7——已批 release.md/deprecation.md 批后被改正文、无重批留痕；
+# SPEC-3 承诺的历史对账探针从未实现。同文件摘要防不了同域篡改（评审 G3/P2），
+# 故用 git 历史锚定：批准锚之后正文变更且未再触碰门禁块 → 红。
+echo "-- 门禁批准绑定内容 --"
+if command -v git >/dev/null 2>&1; then
+  GIW="$WORK/gimm"; mkdir -p "$GIW/scripts/lib" "$GIW/specs/f"
+  cp "$ROOT/scripts/check-gate-immutability.sh" "$GIW/scripts/"
+  cp "$ROOT/scripts/lib/gate.sh" "$ROOT/scripts/lib/artifact.sh" "$GIW/scripts/lib/"
+  git -C "$GIW" init -q
+  printf '# PRFAQ\n正文 v1\n\n---\n门禁⓪ 记录：\n- 批准人：张三（人类）\n- 决定：go\n- 日期：2026-01-01\n- 备注：t\n' > "$GIW/specs/f/prfaq.md"
+  git -C "$GIW" add specs scripts
+  git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm approve
+  expect "批绑/0 批准后正文未动放行" 0 bash "$GIW/scripts/check-gate-immutability.sh"
+  sed -i '' 's/正文 v1/正文 v2 被改/' "$GIW/specs/f/prfaq.md"
+  expect "批绑/1 批后改正文（未提交也算）必须被抓" 1 bash "$GIW/scripts/check-gate-immutability.sh"
+  git -C "$GIW" add specs
+  git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm sneaky
+  expect "批绑/1 批后改正文已提交仍被抓" 1 bash "$GIW/scripts/check-gate-immutability.sh"
+  printf -- '- 重批：正文修订经复核 ｜ 批准人：张三（人类）\n' >> "$GIW/specs/f/prfaq.md"
+  git -C "$GIW" add specs
+  git -C "$GIW" -c user.name=t -c user.email=t@t commit -qm rebless
+  expect "批绑/0 重批留痕（再触碰门禁块区域）后放行" 0 bash "$GIW/scripts/check-gate-immutability.sh"
+else
+  echo "  ⚠️  跳过：无 git（check-gate-immutability 负样本）"
+fi
+
 # ---------- CI 步骤清单对账（platform-hardening B1）----------
 # 起源：评估 D6——required check 只认 job 名，步骤内容 PR 自控，删步骤=静默降级零发现。
 # 本探针是漂移门槛（同域可被一并删，诚实边界见其头部），负样本钉"阉割必须被抓"。
