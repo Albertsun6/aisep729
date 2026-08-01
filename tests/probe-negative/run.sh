@@ -886,6 +886,23 @@ else
   echo "  ⚠️  跳过：无 git 或 bin/e2e"
 fi
 
+# ---------- 六件套结构探针：零抽取 fail-open（platform-hardening A1）----------
+# 起源：2026-08-01 异构评估 mutation 实测——manifest 表内 skill 前缀漂移（如批量更名）后
+# 探针打印 'PASS…登记 0 个 skill' exit 0。守的正是刚发生过 e2e-platform→aisep 更名的
+# 单一清单，"抽出 0 条一律响亮失败"是本仓自订规则（CLAUDE.md），探针自己却违反。
+echo "-- check-structure 零抽取 --"
+SZ="$WORK/structzero"
+mkdir -p "$SZ/scripts" "$SZ/docs/process/stages" "$SZ/.claude/skills"
+cp "$ROOT/scripts/check-structure.sh" "$SZ/scripts/"
+{ printf -- '| skill | 段 | 门禁 | 产物 | 探针 |\n|---|---|---|---|---|\n'
+  printf -- '| `aisep-discovery` | 0 | ⓪ | prfaq | check-prfaq |\n'; } > "$SZ/docs/process/skills-manifest.md"
+{ for s in 0 1 2 3 4 5 6; do printf -- '## 阶段 %s：占位\n\n词条。\n\n' "$s"; done; } > "$SZ/docs/glossary.md"
+printf -- '# stage-0\n' > "$SZ/docs/process/stages/stage-0-x.md"
+expect "结构/66 manifest 前缀漂移抽出 0 个 skill 必须响亮失败" 66 bash "$SZ/scripts/check-structure.sh"
+# 双向钉死：登记 1 个（未实现）时仍应 PASS——守卫不许把"待建"误伤成失败
+printf -- '| `e2e-discovery` | 0 | ⓪ | prfaq | check-prfaq |\n' >> "$SZ/docs/process/skills-manifest.md"
+expect "结构/0 登记 1 个待建 skill 正常放行" 0 bash "$SZ/scripts/check-structure.sh"
+
 # ---------- adopt/init 能力层对等（冷启动 blocker 回归）----------
 # 起源：cmd_adopt 自己维护了一份平行清单，随平台加探针而漂移，最终比 init 少 12 个文件
 # （0 hook / 0 CI / 0 负样本 / 无 settings.json）—— 存量仓拿到残废安装却以为装好了。

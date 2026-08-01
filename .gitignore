@@ -5,3 +5,5 @@
 # 探针/评审的临时产物
 /tmp-*
 *.log
+# Claude Code 本地 worktree（EnterWorktree 产物，绝不入库）
+.claude/worktrees/
