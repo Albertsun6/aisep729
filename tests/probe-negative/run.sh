@@ -906,6 +906,58 @@ mut_trap 4; expect "traps/66 改坏陷阱4 生产正则→金丝雀拦截" 66 ba
 sed -e "s/^T2_STR=.*/T2_STR='ZZZ_NEVER'/" "$ST" > "$STW/mut2.sh"
 expect "traps/66 改坏陷阱2 固定串→检出型金丝雀拦截（旧实现无此金丝雀）" 66 bash "$STW/mut2.sh" "$STW/t2.sh"
 
+# ---------- C13 补欠：四个零负样本探针（platform-hardening A3）----------
+# 起源：宪法 C13 写"每个 check-*.sh 须对至少一个坏样本 FAIL"，但 selfcontained /
+# action-pins / marketplace-sha / demo-video 四探针在本套件零用例（structure 已在 A1 补）。
+# 样本里的敏感模式用 \x 转义，防 run.sh 自身被真探针（selfcontained 全仓扫描）抓到。
+echo "-- C13 补欠：selfcontained --"
+SC="$WORK/selfc"; mkdir -p "$SC/scripts"
+cp "$ROOT/scripts/check-selfcontained.sh" "$SC/scripts/"
+printf '# doc\nsee /\x55sers/somebody/secret/tool\n' > "$SC/readme.md"
+expect "自包含/66 个人绝对路径（白名单外）必须被抓" 66 bash "$SC/scripts/check-selfcontained.sh"
+printf '# doc\nclean line\n' > "$SC/readme.md"
+expect "自包含/0 干净仓放行" 0 bash "$SC/scripts/check-selfcontained.sh"
+
+echo "-- C13 补欠：action-pins --"
+APN="$WORK/pins"; mkdir -p "$APN/.github/workflows"
+printf 'jobs:\n  b:\n    steps:\n      - uses: actions/checkout@v5\n' > "$APN/.github/workflows/w.yml"
+expect "钉版/1 可变 tag 必须被抓（C15）" 1 bash "$ROOT/scripts/check-action-pins.sh" "$APN"
+printf 'jobs:\n  b:\n    steps:\n      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09\n' > "$APN/.github/workflows/w.yml"
+expect "钉版/0 40 位 SHA 放行" 0 bash "$ROOT/scripts/check-action-pins.sh" "$APN"
+APN2="$WORK/pins-empty"; mkdir -p "$APN2"
+expect "钉版/66 无可检对象 fail-closed" 66 bash "$ROOT/scripts/check-action-pins.sh" "$APN2"
+
+echo "-- C13 补欠：marketplace-sha --"
+if command -v git >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+  MS="$WORK/mkt"; mkdir -p "$MS/.claude-plugin" "$MS/.claude"
+  git -C "$MS" init -q
+  printf 'v1\n' > "$MS/.claude/cap.txt"
+  git -C "$MS" add .claude/cap.txt
+  git -C "$MS" -c user.name=t -c user.email=t@t commit -qm base
+  MSHA=$(git -C "$MS" rev-parse HEAD)
+  printf '{"plugins":[{"name":"p","source":{"sha":"%s","path":".claude"}}]}\n' "$MSHA" > "$MS/.claude-plugin/marketplace.json"
+  git -C "$MS" add .claude-plugin/marketplace.json
+  git -C "$MS" -c user.name=t -c user.email=t@t commit -qm pin
+  expect "插件sha/0 钉住后被分发路径无改动放行" 0 bash "$ROOT/scripts/check-marketplace-sha.sh" "$MS"
+  printf 'v2\n' > "$MS/.claude/cap.txt"
+  git -C "$MS" add .claude/cap.txt
+  git -C "$MS" -c user.name=t -c user.email=t@t commit -qm drift
+  expect "插件sha/1 sha 落后于被分发路径改动必须被抓" 1 bash "$ROOT/scripts/check-marketplace-sha.sh" "$MS"
+  printf '{"plugins":[]}\n' > "$MS/.claude-plugin/marketplace.json"
+  expect "插件sha/66 零 plugin 无可检对象 fail-closed" 66 bash "$ROOT/scripts/check-marketplace-sha.sh" "$MS"
+else
+  echo "  ⚠️  跳过：无 git/python3（check-marketplace-sha 负样本）"
+fi
+
+echo "-- C13 补欠：demo-video --"
+if command -v ffprobe >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1; then
+  DV="$WORK/dv"; mkdir -p "$DV"
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=black:s=64x64:d=2 -t 2 "$DV/v.mp4" 2>/dev/null
+  expect "视频/1 2 秒无声无字幕必须被抓（SPEC-25）" 1 bash "$ROOT/scripts/check-demo-video.sh" "$DV/v.mp4"
+else
+  echo "  ⚠️  跳过：无 ffmpeg/ffprobe（check-demo-video 负样本，CI macos runner 自带）"
+fi
+
 # ---------- 六件套结构探针：零抽取 fail-open（platform-hardening A1）----------
 # 起源：2026-08-01 异构评估 mutation 实测——manifest 表内 skill 前缀漂移（如批量更名）后
 # 探针打印 'PASS…登记 0 个 skill' exit 0。守的正是刚发生过 e2e-platform→aisep 更名的
